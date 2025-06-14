@@ -1,0 +1,278 @@
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  color: #333;
+  text-align: center;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.infoSection {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.sectionTitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.infoItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background-color: white;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+}
+
+.infoLabel {
+  font-weight: 500;
+  color: #666;
+}
+
+.infoValue {
+  font-weight: 600;
+  color: #333;
+  font-family: monospace;
+}
+
+.form {
+  background-color: white;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.formGroup {
+  margin-bottom: 1.5rem;
+}
+
+.label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.hint {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.warning {
+  padding: 1rem;
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 6px;
+  color: #856404;
+  margin-bottom: 1rem;
+}
+
+.error {
+  padding: 1rem;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 6px;
+  color: #721c24;
+  margin-bottom: 1rem;
+}
+
+.success {
+  padding: 1rem;
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 6px;
+  color: #155724;
+  margin-bottom: 1rem;
+  word-break: break-all;
+}
+
+.mintButton {
+  width: 100%;
+  padding: 1rem;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.mintButton:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.mintButton:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.exampleSection {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.exampleTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.exampleCode {
+  background-color: #2d3748;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.previewSection {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.previewLoading {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+}
+
+.previewError {
+  padding: 1rem;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 6px;
+  color: #721c24;
+}
+
+.previewTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.previewContent {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.previewImage {
+  flex: 0 0 200px;
+  max-width: 200px;
+}
+
+.previewImage img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.previewDetails {
+  flex: 1;
+  min-width: 250px;
+}
+
+.previewItem {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background-color: white;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+}
+
+.previewItem strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.attributesList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.attributeItem {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.traitType {
+  font-weight: 500;
+  color: #666;
+}
+
+.traitValue {
+  font-weight: 600;
+  color: #333;
+}
+
+@media (max-width: 768px) {
+  .previewContent {
+    flex-direction: column;
+  }
+  
+  .previewImage {
+    flex: none;
+    max-width: 100%;
+  }
+}

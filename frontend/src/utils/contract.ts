@@ -1,0 +1,230 @@
+import { ethers } from 'ethers';
+import { CONTRACT_ADDRESS, RPC_URL } from '../constants';
+import type { NFTToken, ContractInfo } from '../types';
+import contractAbi from '../../config/abi.json';
+
+export class ContractService {
+  private provider: ethers.JsonRpcProvider;
+  private contract: ethers.Contract;
+
+  constructor(signer?: ethers.JsonRpcSigner) {
+    this.provider = new ethers.JsonRpcProvider(RPC_URL);
+    this.contract = new ethers.Contract(
+      CONTRACT_ADDRESS,
+      contractAbi,
+      signer || this.provider
+    );
+  }
+
+  async getMintFee(): Promise<string> {
+    try {
+      const fee = await (this.contract as any).getMintFee();
+      return ethers.formatEther(fee);
+    } catch (error) {
+      console.error('Failed to get mint fee:', error);
+      throw error;
+    }
+  }
+
+  async mint(to: string, metaUrl: string, signer: ethers.JsonRpcSigner): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const contractWithSigner = this.contract.connect(signer);
+      const mintFee = await this.getMintFee();
+      
+      const tx = await (contractWithSigner as any).mint(to, metaUrl, {
+        value: ethers.parseEther(mintFee),
+      });
+      
+      return tx;
+    } catch (error) {
+      console.error('Failed to mint NFT:', error);
+      throw error;
+    }
+  }
+
+  async getTotalSupply(): Promise<number> {
+    try {
+      const supply = await (this.contract as any).totalSupply();
+      return Number(supply);
+    } catch (error) {
+      console.error('Failed to get total supply:', error);
+      throw error;
+    }
+  }
+
+  async getTokenByIndex(index: number): Promise<string> {
+    try {
+      const tokenId = await (this.contract as any).tokenByIndex(index);
+      return tokenId.toString();
+    } catch (error) {
+      console.error('Failed to get token by index:', error);
+      throw error;
+    }
+  }
+
+  async getTokenURI(tokenId: string): Promise<string> {
+    try {
+      const uri = await (this.contract as any).tokenURI(tokenId);
+      return uri;
+    } catch (error) {
+      console.error('Failed to get token URI:', error);
+      throw error;
+    }
+  }
+
+  async getOwnerOf(tokenId: string): Promise<string> {
+    try {
+      const owner = await (this.contract as any).ownerOf(tokenId);
+      return owner;
+    } catch (error) {
+      console.error('Failed to get owner of token:', error);
+      throw error;
+    }
+  }
+
+  async getBalanceOf(owner: string): Promise<number> {
+    try {
+      const balance = await (this.contract as any).balanceOf(owner);
+      return Number(balance);
+    } catch (error) {
+      console.error('Failed to get balance:', error);
+      throw error;
+    }
+  }
+
+  async getTokenOfOwnerByIndex(owner: string, index: number): Promise<string> {
+    try {
+      const tokenId = await (this.contract as any).tokenOfOwnerByIndex(owner, index);
+      return tokenId.toString();
+    } catch (error) {
+      console.error('Failed to get token of owner by index:', error);
+      throw error;
+    }
+  }
+
+  async getAllTokens(): Promise<NFTToken[]> {
+    try {
+      const totalSupply = await this.getTotalSupply();
+      const tokens: NFTToken[] = [];
+      
+      for (let i = 0; i < totalSupply; i++) {
+        const tokenId = await this.getTokenByIndex(i);
+        const owner = await this.getOwnerOf(tokenId);
+        const tokenURI = await this.getTokenURI(tokenId);
+        
+        tokens.push({
+          tokenId,
+          owner,
+          tokenURI,
+        });
+      }
+      
+      return tokens;
+    } catch (error) {
+      console.error('Failed to get all tokens:', error);
+      throw error;
+    }
+  }
+
+  async getTokensBatch(startIndex: number, batchSize: number): Promise<{ tokens: NFTToken[], hasMore: boolean }> {
+    try {
+      const totalSupply = await this.getTotalSupply();
+      const tokens: NFTToken[] = [];
+      
+      // 降順で取得するため、最後のインデックスから逆順で取得
+      const actualStartIndex = totalSupply - 1 - startIndex;
+      const actualEndIndex = Math.max(actualStartIndex - batchSize + 1, 0);
+      
+      for (let i = actualStartIndex; i >= actualEndIndex; i--) {
+        const tokenId = await this.getTokenByIndex(i);
+        const owner = await this.getOwnerOf(tokenId);
+        const tokenURI = await this.getTokenURI(tokenId);
+        
+        tokens.push({
+          tokenId,
+          owner,
+          tokenURI,
+        });
+      }
+      
+      return {
+        tokens,
+        hasMore: actualEndIndex > 0
+      };
+    } catch (error) {
+      console.error('Failed to get tokens batch:', error);
+      throw error;
+    }
+  }
+
+  async getTokensByOwner(owner: string): Promise<NFTToken[]> {
+    try {
+      const balance = await this.getBalanceOf(owner);
+      const tokens: NFTToken[] = [];
+      
+      for (let i = 0; i < balance; i++) {
+        const tokenId = await this.getTokenOfOwnerByIndex(owner, i);
+        const tokenURI = await this.getTokenURI(tokenId);
+        
+        tokens.push({
+          tokenId,
+          owner,
+          tokenURI,
+        });
+      }
+      
+      // tokenIdの降順でソート（新しいものが最初に表示される）
+      return tokens.sort((a, b) => parseInt(b.tokenId) - parseInt(a.tokenId));
+    } catch (error) {
+      console.error('Failed to get tokens by owner:', error);
+      throw error;
+    }
+  }
+
+  async burn(tokenId: string, signer: ethers.JsonRpcSigner): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const contractWithSigner = this.contract.connect(signer);
+      
+      // Check if the signer is the owner of the token
+      const signerAddress = await signer.getAddress();
+      const tokenOwner = await this.getOwnerOf(tokenId);
+      
+      if (signerAddress.toLowerCase() !== tokenOwner.toLowerCase()) {
+        throw new Error('Only the token owner can burn this NFT');
+      }
+      
+      const tx = await (contractWithSigner as any).burn(tokenId);
+      return tx;
+    } catch (error) {
+      console.error('Failed to burn NFT:', error);
+      throw error;
+    }
+  }
+
+  async getContractInfo(): Promise<ContractInfo> {
+    try {
+      const [creator, feeRate, creatorOnly] = await (this.contract as any).getInfo();
+      return {
+        creator,
+        feeRate: feeRate.toString(),
+        creatorOnly,
+      };
+    } catch (error) {
+      console.error('Failed to get contract info:', error);
+      throw error;
+    }
+  }
+
+  async fetchMetadata(tokenURI: string): Promise<any> {
+    try {
+      const response = await fetch(tokenURI);
+      if (!response.ok) {
+        throw new Error('Failed to fetch metadata');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to fetch metadata:', error);
+      return null;
+    }
+  }
+}
