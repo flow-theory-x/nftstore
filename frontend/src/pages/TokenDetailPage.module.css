@@ -55,12 +55,18 @@
   top: 20px;
 }
 
+@media (max-width: 768px) {
+  .imageSection {
+    position: static;
+  }
+}
+
 /* Media tabs */
 .mediaTabs {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid #bababa;
   padding-bottom: 8px;
 }
 
@@ -77,17 +83,17 @@
 }
 
 .mediaTab:hover {
-  background-color: #e9ecef;
+  background-color: #dadcdc;
   color: #333;
 }
 
 .activeTab {
-  background-color: #007bff;
+  background-color: #30bca7;
   color: white;
 }
 
 .activeTab:hover {
-  background-color: #0056b3;
+  background-color: #089781;
 }
 
 .mediaDisplay {
@@ -216,8 +222,9 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  margin: 5px 5px;
   padding: 12px 24px;
-  background-color: #28a745;
+  background-color: #30bca7;
   color: white;
   text-decoration: none;
   border-radius: 8px;
@@ -228,7 +235,7 @@
 }
 
 .externalLink:hover {
-  background-color: #218838;
+  background-color: #64d8c6;
   color: white;
   text-decoration: none;
   transform: translateY(-1px);
@@ -276,7 +283,7 @@
 }
 
 .youtubeError a {
-  color: #007bff;
+  color: #30bca7;
   text-decoration: none;
 }
 
@@ -362,25 +369,25 @@
 }
 
 .ownerLink {
-  color: #007bff;
+  color: #30bca7;
   text-decoration: none;
   font-family: monospace;
   transition: color 0.2s;
 }
 
 .ownerLink:hover {
-  color: #0056b3;
+  color: #089781;
   text-decoration: underline;
 }
 
 .link {
-  color: #007bff;
+  color: #30bca7;
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .link:hover {
-  color: #0056b3;
+  color: #089781;
   text-decoration: underline;
 }
 
@@ -440,14 +447,14 @@
 }
 
 .attributeLink a {
-  color: #007bff;
+  color: #30bca7;
   text-decoration: none;
   font-family: monospace;
   word-break: break-all;
 }
 
 .attributeLink a:hover {
-  color: #0056b3;
+  color: #089781;
   text-decoration: underline;
 }
 
@@ -686,7 +693,7 @@
 
 .addressInput:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: #30bca7;
 }
 
 .modalActions {

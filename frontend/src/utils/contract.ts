@@ -28,10 +28,16 @@ export class ContractService {
     }
   }
 
-  async mint(to: string, metaUrl: string, signer: ethers.JsonRpcSigner): Promise<ethers.ContractTransactionResponse> {
+  async mint(to: string, metaUrl: string, signer: ethers.JsonRpcSigner, customFee?: string): Promise<ethers.ContractTransactionResponse> {
     try {
       const contractWithSigner = this.contract.connect(signer);
-      const mintFee = await this.getMintFee();
+      
+      let mintFee: string;
+      if (customFee !== undefined) {
+        mintFee = customFee;
+      } else {
+        mintFee = await this.getMintFee();
+      }
       
       const tx = await (contractWithSigner as any).mint(to, metaUrl, {
         value: ethers.parseEther(mintFee),

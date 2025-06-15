@@ -86,7 +86,7 @@
 
 .mintLink {
   padding: 10px 20px;
-  background-color: #007bff;
+  background-color: #30bca7;
   color: white;
   text-decoration: none;
   border-radius: 6px;
@@ -95,7 +95,7 @@
 }
 
 .mintLink:hover {
-  background-color: #0056b3;
+  background-color: #089781;
 }
 
 .stats {

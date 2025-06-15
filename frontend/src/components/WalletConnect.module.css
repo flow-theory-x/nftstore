@@ -7,7 +7,7 @@
 
 .connectButton {
   padding: 12px 24px;
-  background-color: #007bff;
+  background-color: #30bca7;
   color: white;
   border: none;
   border-radius: 8px;
@@ -17,7 +17,7 @@
 }
 
 .connectButton:hover:not(:disabled) {
-  background-color: #0056b3;
+  background-color: #089781;
 }
 
 .connectButton:disabled {

@@ -25,6 +25,13 @@
   padding: 1.5rem;
 }
 
+.walletSection {
+  background-color: #e8f5e8;
+  border: 1px solid #b4d7b4;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
 .sectionTitle {
   font-size: 1.2rem;
   font-weight: 600;
@@ -34,7 +41,7 @@
 
 .infoGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
 }
 
@@ -59,11 +66,45 @@
   font-family: monospace;
 }
 
+.wrongNetwork {
+  color: #dc3545 !important;
+}
+
+.correctNetwork {
+  color: #28a745 !important;
+}
+
+.sufficientBalance {
+  color: #28a745 !important;
+}
+
+.insufficientBalance {
+  color: #dc3545 !important;
+}
+
 .form {
   background-color: white;
   border: 1px solid #dee2e6;
   border-radius: 12px;
   padding: 2rem;
+}
+
+.feeSection {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.warningMessage {
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
 }
 
 .formGroup {
@@ -88,7 +129,7 @@
 
 .input:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: #30bca7;
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
@@ -129,7 +170,7 @@
 .mintButton {
   width: 100%;
   padding: 1rem;
-  background-color: #007bff;
+  background-color: #30bca7;
   color: white;
   border: none;
   border-radius: 8px;
@@ -140,7 +181,7 @@
 }
 
 .mintButton:hover:not(:disabled) {
-  background-color: #0056b3;
+  background-color: #089781;
 }
 
 .mintButton:disabled {
@@ -270,7 +311,7 @@
   .previewContent {
     flex-direction: column;
   }
-  
+
   .previewImage {
     flex: none;
     max-width: 100%;

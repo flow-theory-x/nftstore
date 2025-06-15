@@ -1,5 +1,5 @@
-import React from 'react';
-import styles from './ModelViewer.module.css';
+import React from "react";
+import styles from "./ModelViewer.module.css";
 
 interface ModelViewerProps {
   modelUrl: string;
@@ -7,15 +7,17 @@ interface ModelViewerProps {
   className?: string;
 }
 
-export const ModelViewer: React.FC<ModelViewerProps> = ({ 
-  modelUrl, 
+export const ModelViewer: React.FC<ModelViewerProps> = ({
+  modelUrl,
   alt = "3D Model",
-  className
+  className,
 }) => {
-  const viewerUrl = `https://nft.x-flow.sbs/standalone-modelviewer.html?model-view-src=${encodeURIComponent(modelUrl)}`;
+  const viewerUrl = `https://goodsun.github.io/modelviewer/?src=${encodeURIComponent(
+    modelUrl
+  )}`;
 
   return (
-    <div className={`${styles.container} ${className || ''}`}>
+    <div className={`${styles.container} ${className || ""}`}>
       <iframe
         src={viewerUrl}
         title={alt}
