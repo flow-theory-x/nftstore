@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ContractService } from '../utils/contract';
 import { useWallet } from '../hooks/useWallet';
 import { CHAIN_ID, CURRENCY_SYMBOL } from '../constants';
@@ -17,6 +17,7 @@ interface MetadataPreview {
 
 export const MintPage: React.FC = () => {
   const navigate = useNavigate();
+  const { contractAddress } = useParams<{ contractAddress?: string }>();
   const { walletState, getSigner } = useWallet();
   const [mintFee, setMintFee] = useState<string>('0');
   const [metaUrl, setMetaUrl] = useState('');
@@ -35,7 +36,7 @@ export const MintPage: React.FC = () => {
     const fetchMintFee = async () => {
       try {
         setFetchingFee(true);
-        const contractService = new ContractService();
+        const contractService = new ContractService(contractAddress);
         const fee = await contractService.getMintFee();
         setMintFee(fee);
       } catch (err: any) {
@@ -47,7 +48,7 @@ export const MintPage: React.FC = () => {
     };
 
     fetchMintFee();
-  }, []);
+  }, [contractAddress]);
 
   useEffect(() => {
     const fetchMetadataPreview = async () => {
@@ -99,7 +100,7 @@ export const MintPage: React.FC = () => {
       setError(null);
       setSuccess(null);
 
-      const contractService = new ContractService();
+      const contractService = new ContractService(contractAddress);
       const tx = await contractService.mint(walletState.address!, metaUrl.trim(), signer);
       
       setSuccess(`Transaction submitted! Hash: ${tx.hash}`);

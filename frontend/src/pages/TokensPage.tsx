@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { NFTCard } from '../components/NFTCard';
 import { ContractService } from '../utils/contract';
 import type { NFTToken } from '../types';
 import styles from './TokensPage.module.css';
 
 export const TokensPage: React.FC = () => {
+  const { contractAddress } = useParams<{ contractAddress?: string }>();
   const [tokens, setTokens] = useState<NFTToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -12,10 +14,16 @@ export const TokensPage: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalSupply, setTotalSupply] = useState<number>(0);
   const [initialized, setInitialized] = useState(false);
+  const [contractName, setContractName] = useState<string>('All Tokens');
+
+  const handleRefresh = () => {
+    // ページをリロードして最新データを取得
+    window.location.reload();
+  };
 
   const fetchTokensBatch = async (startIndex: number) => {
     try {
-      const contractService = new ContractService();
+      const contractService = new ContractService(contractAddress);
       const { tokens: newTokens, hasMore: moreTokens } = await contractService.getTokensBatch(startIndex, 3);
       
       // 重複チェックを追加
@@ -35,12 +43,32 @@ export const TokensPage: React.FC = () => {
   };
 
   useEffect(() => {
+    // contractAddressが変更されたときにstateをリセット
+    setTokens([]);
+    setLoading(true);
+    setError(null);
+    setIsLoadingMore(false);
+    setHasMore(true);
+    setTotalSupply(0);
+    setInitialized(false);
+    setContractName('All Tokens'); // リセット時にデフォルト値に戻す
+
     const initializeTokens = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        const contractService = new ContractService();
+        const contractService = new ContractService(contractAddress);
+        
+        // コントラクト名を先に取得
+        try {
+          const name = await contractService.getName();
+          setContractName(name || 'All Tokens');
+        } catch (err) {
+          console.warn('Failed to fetch contract name:', err);
+          setContractName('All Tokens');
+        }
+        
         const supply = await contractService.getTotalSupply();
         setTotalSupply(supply);
         
@@ -57,7 +85,7 @@ export const TokensPage: React.FC = () => {
     };
 
     initializeTokens();
-  }, []);
+  }, [contractAddress]);
 
   useEffect(() => {
     if (!initialized || !hasMore || loading || isLoadingMore || tokens.length === 0) return;
@@ -86,7 +114,7 @@ export const TokensPage: React.FC = () => {
   if (loading) {
     return (
       <div className={styles.container}>
-        <h1 className={styles.title}>All Tokens</h1>
+        <h1 className={styles.title}>{contractName}</h1>
         <div className={styles.loading}>Loading tokens...</div>
       </div>
     );
@@ -95,7 +123,7 @@ export const TokensPage: React.FC = () => {
   if (error) {
     return (
       <div className={styles.container}>
-        <h1 className={styles.title}>All Tokens</h1>
+        <h1 className={styles.title}>{contractName}</h1>
         <div className={styles.error}>
           <p>{error}</p>
           <button 
@@ -130,7 +158,13 @@ export const TokensPage: React.FC = () => {
           
           <div className={styles.grid}>
             {tokens.map((token) => (
-              <NFTCard key={token.tokenId} token={token} />
+              <NFTCard 
+                key={token.tokenId} 
+                token={token} 
+                contractAddress={contractAddress} 
+                onBurn={handleRefresh}
+                onTransfer={handleRefresh}
+              />
             ))}
           </div>
           

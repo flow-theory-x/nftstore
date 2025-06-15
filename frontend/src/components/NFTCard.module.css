@@ -12,6 +12,17 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
+.imageLink {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.imageLink:hover {
+  text-decoration: none;
+  color: inherit;
+}
+
 .imageContainer {
   width: 100%;
   height: 200px;
@@ -57,6 +68,17 @@
   font-weight: 600;
   color: #333;
   word-break: break-word;
+}
+
+.nameLink {
+  color: #333;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.nameLink:hover {
+  color: #007bff;
+  text-decoration: none;
 }
 
 .description {
@@ -142,22 +164,26 @@
   padding-top: 12px;
   border-top: 1px solid #e9ecef;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
+  align-items: center;
 }
 
 .openSeaLink {
-  display: inline-block;
-  width: 100%;
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 8px;
   background-color: #2081e2;
   color: white;
   text-decoration: none;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   text-align: center;
   transition: background-color 0.2s;
+  min-height: 32px;
 }
 
 .openSeaLink:hover {
@@ -166,10 +192,151 @@
   color: white;
 }
 
+.transferButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 8px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  min-height: 32px;
+}
+
+.transferButton:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.transferButton:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
 .burnButton {
-  width: 100%;
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 8px;
   background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  min-height: 32px;
+}
+
+.burnButton:hover:not(:disabled) {
+  background-color: #c82333;
+}
+
+.burnButton:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+/* Modal styles for NFTCard */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modalContent {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.modalHeader h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.closeButton:hover {
+  background-color: #f8f9fa;
+}
+
+.modalBody {
+  padding: 20px;
+}
+
+.modalBody p {
+  margin: 0 0 12px 0;
+  color: #333;
+  font-size: 14px;
+}
+
+.addressInput {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: monospace;
+  transition: border-color 0.2s;
+}
+
+.addressInput:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.modalActions {
+  display: flex;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #e9ecef;
+}
+
+.cancelButton {
+  flex: 1;
+  padding: 10px 16px;
+  background-color: #6c757d;
   color: white;
   border: none;
   border-radius: 6px;
@@ -179,11 +346,28 @@
   transition: background-color 0.2s;
 }
 
-.burnButton:hover:not(:disabled) {
-  background-color: #c82333;
+.cancelButton:hover {
+  background-color: #5a6268;
 }
 
-.burnButton:disabled {
+.confirmButton {
+  flex: 1;
+  padding: 10px 16px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.confirmButton:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.confirmButton:disabled {
   background-color: #6c757d;
   cursor: not-allowed;
 }

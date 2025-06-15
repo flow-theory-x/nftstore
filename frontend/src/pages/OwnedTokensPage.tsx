@@ -7,11 +7,16 @@ import { useWallet } from '../hooks/useWallet';
 import styles from './OwnedTokensPage.module.css';
 
 export const OwnedTokensPage: React.FC = () => {
-  const { address } = useParams<{ address: string }>();
+  const { contractAddress, address } = useParams<{ contractAddress?: string; address: string }>();
   const { walletState } = useWallet();
   const [tokens, setTokens] = useState<NFTToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const handleRefresh = () => {
+    // ページをリロードして最新データを取得
+    window.location.reload();
+  };
 
   const isOwnAddress = walletState.address?.toLowerCase() === address?.toLowerCase();
 
@@ -27,7 +32,7 @@ export const OwnedTokensPage: React.FC = () => {
         setLoading(true);
         setError(null);
         
-        const contractService = new ContractService();
+        const contractService = new ContractService(contractAddress);
         const ownedTokens = await contractService.getTokensByOwner(address);
         
         setTokens(ownedTokens);
@@ -40,7 +45,7 @@ export const OwnedTokensPage: React.FC = () => {
     };
 
     fetchTokens();
-  }, [address]);
+  }, [contractAddress, address]);
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -104,7 +109,13 @@ export const OwnedTokensPage: React.FC = () => {
           
           <div className={styles.grid}>
             {tokens.map((token) => (
-              <NFTCard key={token.tokenId} token={token} />
+              <NFTCard 
+                key={token.tokenId} 
+                token={token} 
+                contractAddress={contractAddress} 
+                onBurn={handleRefresh}
+                onTransfer={handleRefresh}
+              />
             ))}
           </div>
         </>

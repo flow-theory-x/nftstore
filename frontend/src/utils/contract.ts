@@ -6,11 +6,13 @@ import contractAbi from '../../config/abi.json';
 export class ContractService {
   private provider: ethers.JsonRpcProvider;
   private contract: ethers.Contract;
+  private contractAddress: string;
 
-  constructor(signer?: ethers.JsonRpcSigner) {
+  constructor(contractAddress?: string, signer?: ethers.JsonRpcSigner) {
+    this.contractAddress = contractAddress || CONTRACT_ADDRESS;
     this.provider = new ethers.JsonRpcProvider(RPC_URL);
     this.contract = new ethers.Contract(
-      CONTRACT_ADDRESS,
+      this.contractAddress,
       contractAbi,
       signer || this.provider
     );
@@ -48,6 +50,16 @@ export class ContractService {
       return Number(supply);
     } catch (error) {
       console.error('Failed to get total supply:', error);
+      throw error;
+    }
+  }
+
+  async getName(): Promise<string> {
+    try {
+      const name = await (this.contract as any).name();
+      return name;
+    } catch (error) {
+      console.error('Failed to get contract name:', error);
       throw error;
     }
   }
@@ -197,6 +209,32 @@ export class ContractService {
       return tx;
     } catch (error) {
       console.error('Failed to burn NFT:', error);
+      throw error;
+    }
+  }
+
+  async transfer(tokenId: string, to: string, signer: ethers.JsonRpcSigner): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const contractWithSigner = this.contract.connect(signer);
+      
+      // Check if the signer is the owner of the token
+      const signerAddress = await signer.getAddress();
+      const tokenOwner = await this.getOwnerOf(tokenId);
+      
+      if (signerAddress.toLowerCase() !== tokenOwner.toLowerCase()) {
+        throw new Error('Only the token owner can transfer this NFT');
+      }
+
+      // Validate the recipient address
+      if (!ethers.isAddress(to)) {
+        throw new Error('Invalid recipient address');
+      }
+
+      // Use safeTransferFrom for ERC721 transfer
+      const tx = await (contractWithSigner as any).safeTransferFrom(signerAddress, to, tokenId);
+      return tx;
+    } catch (error) {
+      console.error('Failed to transfer NFT:', error);
       throw error;
     }
   }
