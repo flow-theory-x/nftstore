@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Model Viewer</title>
+    <script type="module" src="./model-viewer.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #000000;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #000000;
+        }
+
+        model-viewer {
+            width: 100%;
+            height: 100%;
+            --poster-color: #000000;
+            --progress-bar-color: #007bff;
+            --progress-mask: transparent;
+            display: block;
+            background-color: var(--poster-color);
+        }
+
+        /* カスタムプログレスバー */
+        .custom-progress-bar {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .progress-bar-track {
+            width: 200px;
+            height: 6px;
+            background-color: rgba(0, 0, 0, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #0056b3);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+            animation: progressPulse 1.5s ease-in-out infinite;
+            width: 0%;
+        }
+
+        .progress-percent {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        @keyframes progressPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* ライトコントロールボタン */
+        .light-control-button {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            cursor: pointer;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .light-control-button svg {
+            width: 28px;
+            height: 28px;
+            fill: #333;
+        }
+
+        .light-control-button:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: scale(1.1);
+        }
+
+        /* ライトコントロールパネル */
+        .light-controls {
+            position: absolute;
+            top: 15px;
+            right: 65px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+            min-width: 200px;
+            display: none;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .slider {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .preset-buttons {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .preset-button {
+            flex: 1;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .preset-button:hover {
+            background: #f0f0f0;
+            border-color: #007bff;
+        }
+
+        /* 背景切り替えボタン */
+        .background-toggle {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .bg-button {
+            width: 32px;
+            height: 32px;
+            border: 2px solid #ddd;
+            border-radius: 50%;
+            background: transparent;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .bg-button.active {
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+        }
+
+        .bg-button:hover {
+            border-color: #007bff;
+            transform: scale(1.1);
+        }
+
+        .bg-black {
+            background: #000;
+        }
+
+        .bg-white {
+            background: #fff;
+            border-color: #ccc;
+        }
+
+        .bg-white.active {
+            border-color: #007bff;
+        }
+
+        /* コントロールヒント */
+        .controls-hint {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            text-align: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .container:hover .controls-hint {
+            opacity: 1;
+        }
+
+        .controls-hint p {
+            margin: 0;
+            opacity: 0.9;
+        }
+
+        /* エラー表示 */
+        .error-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            min-height: 300px;
+            padding: 40px 20px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+        }
+
+        .error-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .error-text {
+            max-width: 400px;
+        }
+
+        .error-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #dc3545;
+            margin: 0 0 8px 0;
+        }
+
+        .error-message {
+            font-size: 14px;
+            color: #666;
+            margin: 0 0 20px 0;
+            line-height: 1.4;
+        }
+
+        .download-link {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        .download-link:hover {
+            background-color: #0056b3;
+            color: white;
+            text-decoration: none;
+        }
+
+
+        /* モバイル対応 */
+        @media (max-width: 768px) {
+            .light-controls {
+                right: 10px;
+                top: 65px;
+                min-width: 180px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- モデルビューアー -->
+        <model-viewer
+            id="modelViewer"
+            src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
+            alt="3D Model"
+            camera-controls
+            auto-rotate
+            loading="eager"
+            reveal="auto"
+            exposure="0.7"
+            shadow-intensity="0.7"
+            shadow-softness="0.3"
+            style="--poster-color: #000000; background-color: #000000;"
+            camera-orbit="0deg 75deg 105%"
+            field-of-view="30deg"
+            min-camera-orbit="auto auto auto"
+            max-camera-orbit="auto auto auto"
+            min-field-of-view="10deg"
+            max-field-of-view="45deg"
+            autoplay
+            animation-crossfade-duration="300ms"
+        >
+            <!-- プログレスバーを無効化 -->
+            <div slot="progress-bar"></div>
+            
+            <!-- カスタムプログレスバー -->
+            <div class="custom-progress-bar" id="customProgressBar">
+                <div class="progress-text">Loading 3D Model...</div>
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="progressBarFill"></div>
+                </div>
+                <div class="progress-percent" id="progressPercent">0%</div>
+            </div>
+        </model-viewer>
+
+        <!-- ライトコントロールボタン -->
+        <button class="light-control-button" id="lightControlButton" title="Light Controls">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M272 384c9.6-31.9 29.5-59.1 49.2-86.2c0 0 0 0 0 0c5.2-7.1 10.4-14.2 15.4-21.4c19.8-28.5 31.4-63 31.4-100.3C368 78.8 289.2 0 192 0S16 78.8 16 176c0 37.3 11.6 71.9 31.4 100.3c5 7.2 10.2 14.3 15.4 21.4c0 0 0 0 0 0c19.8 27.1 39.7 54.4 49.2 86.2l160 0zM192 512c44.2 0 80-35.8 80-80l0-16-160 0 0 16c0 44.2 35.8 80 80 80zM112 176c0 8.8-7.2 16-16 16s-16-7.2-16-16c0-61.9 50.1-112 112-112c8.8 0 16 7.2 16 16s-7.2 16-16 16c-44.2 0-80 35.8-80 80z"/></svg>
+        </button>
+
+        <!-- ライトコントロールパネル -->
+        <div class="light-controls" id="lightControls">
+            <div class="control-group">
+                <label class="control-label">
+                    Brightness: <span id="exposureValue">70</span>%
+                </label>
+                <input
+                    type="range"
+                    min="0.1"
+                    max="2.0"
+                    step="0.1"
+                    value="0.7"
+                    id="exposureSlider"
+                    class="slider"
+                />
+            </div>
+            
+            <div class="control-group">
+                <label class="control-label">
+                    Shadow: <span id="shadowValue">70</span>%
+                </label>
+                <input
+                    type="range"
+                    min="0"
+                    max="2.0"
+                    step="0.1"
+                    value="0.7"
+                    id="shadowSlider"
+                    class="slider"
+                />
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">Background</label>
+                <div class="background-toggle">
+                    <button
+                        id="bgBlackBtn"
+                        class="bg-button bg-black active"
+                        title="Black background"
+                    >
+                        ⚫
+                    </button>
+                    <button
+                        id="bgWhiteBtn"
+                        class="bg-button bg-white"
+                        title="White background"
+                    >
+                        ⚪
+                    </button>
+                </div>
+            </div>
+            
+            <div class="preset-buttons">
+                <button class="preset-button" onclick="setPreset(0.5, 0.3)">
+                    Dim
+                </button>
+                <button class="preset-button" onclick="setPreset(0.7, 0.7)">
+                    Normal
+                </button>
+                <button class="preset-button" onclick="setPreset(1.5, 1.2)">
+                    Bright
+                </button>
+            </div>
+        </div>
+
+        <!-- コントロールヒント -->
+        <div class="controls-hint">
+            <p>Drag to rotate • Scroll to zoom • Right-click to pan</p>
+        </div>
+    </div>
+
+    <script>
+        const modelViewer = document.getElementById('modelViewer');
+        const lightControlButton = document.getElementById('lightControlButton');
+        const lightControls = document.getElementById('lightControls');
+        const customProgressBar = document.getElementById('customProgressBar');
+        const progressBarFill = document.getElementById('progressBarFill');
+        const progressPercent = document.getElementById('progressPercent');
+        const exposureSlider = document.getElementById('exposureSlider');
+        const shadowSlider = document.getElementById('shadowSlider');
+        const exposureValue = document.getElementById('exposureValue');
+        const shadowValue = document.getElementById('shadowValue');
+        const bgBlackBtn = document.getElementById('bgBlackBtn');
+        const bgWhiteBtn = document.getElementById('bgWhiteBtn');
+
+        let showControls = false;
+        let currentBackgroundColor = 'black';
+
+        // ライトコントロールの表示/非表示
+        lightControlButton.addEventListener('click', () => {
+            showControls = !showControls;
+            lightControls.style.display = showControls ? 'block' : 'none';
+        });
+
+        // モデル読み込みイベント
+        modelViewer.addEventListener('load', () => {
+            console.log('Model loaded successfully');
+            customProgressBar.style.display = 'none';
+            updateBackgroundColor();
+        });
+
+        modelViewer.addEventListener('error', (event) => {
+            console.error('Model loading error:', event.detail);
+            customProgressBar.style.display = 'none';
+            
+            // エラー表示
+            let errorMsg = 'Failed to load 3D model';
+            if (event.detail) {
+                if (event.detail.type === 'loadfailure') {
+                    errorMsg = 'Model file is corrupted or incompatible';
+                } else if (event.detail.sourceError) {
+                    const sourceError = event.detail.sourceError;
+                    if (sourceError.message && sourceError.message.includes('Invalid typed array length')) {
+                        errorMsg = 'Model file is too large for browser memory';
+                    } else if (sourceError.message && sourceError.message.includes('texture')) {
+                        errorMsg = 'Failed to load model textures';
+                    }
+                }
+            }
+            
+            showError(errorMsg, modelViewer.src);
+        });
+
+        modelViewer.addEventListener('progress', (event) => {
+            const progress = event.detail.totalProgress;
+            console.log(`Loading progress: ${(progress * 100).toFixed(1)}%`);
+            
+            progressBarFill.style.width = `${progress * 100}%`;
+            progressPercent.textContent = `${Math.round(progress * 100)}%`;
+            
+            if (progress >= 1) {
+                setTimeout(() => {
+                    customProgressBar.style.display = 'none';
+                }, 500);
+            }
+        });
+
+        // スライダーイベント
+        exposureSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            modelViewer.exposure = value;
+            exposureValue.textContent = Math.round(value * 100);
+        });
+
+        shadowSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            modelViewer.shadowIntensity = value;
+            shadowValue.textContent = Math.round(value * 100);
+        });
+
+        // 背景色変更
+        bgBlackBtn.addEventListener('click', () => {
+            currentBackgroundColor = 'black';
+            updateBackgroundButtons();
+            updateBackgroundColor();
+        });
+
+        bgWhiteBtn.addEventListener('click', () => {
+            currentBackgroundColor = 'white';
+            updateBackgroundButtons();
+            updateBackgroundColor();
+        });
+
+        function updateBackgroundButtons() {
+            bgBlackBtn.classList.toggle('active', currentBackgroundColor === 'black');
+            bgWhiteBtn.classList.toggle('active', currentBackgroundColor === 'white');
+        }
+
+        function updateBackgroundColor() {
+            const bgColor = currentBackgroundColor === 'black' ? '#000000' : '#ffffff';
+            modelViewer.style.setProperty('--poster-color', bgColor);
+            modelViewer.style.backgroundColor = bgColor;
+            
+            // Shadow rootのcanvasにも適用
+            setTimeout(() => {
+                const shadowRoot = modelViewer.shadowRoot;
+                if (shadowRoot) {
+                    const canvas = shadowRoot.querySelector('canvas');
+                    if (canvas) {
+                        canvas.style.backgroundColor = bgColor;
+                    }
+                }
+            }, 100);
+        }
+
+        // プリセット設定
+        function setPreset(exposure, shadow) {
+            exposureSlider.value = exposure;
+            shadowSlider.value = shadow;
+            modelViewer.exposure = exposure;
+            modelViewer.shadowIntensity = shadow;
+            exposureValue.textContent = Math.round(exposure * 100);
+            shadowValue.textContent = Math.round(shadow * 100);
+        }
+
+        // サンプルモデル読み込み
+        function loadSampleModel(url) {
+            modelViewer.src = url;
+            customProgressBar.style.display = 'flex';
+            clearError();
+        }
+
+
+        // エラー表示
+        function showError(message, modelUrl) {
+            const container = document.querySelector('.container');
+            container.innerHTML = `
+                <div class="error-display">
+                    <div class="error-icon">⚠️</div>
+                    <div class="error-text">
+                        <p class="error-title">3D Model Error</p>
+                        <p class="error-message">${message}</p>
+                        <a href="${modelUrl}" target="_blank" rel="noopener noreferrer" class="download-link">
+                            Download Original File
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
+        function clearError() {
+            // エラー表示をクリア（必要に応じて実装）
+        }
+
+        // URLパラメータからモデルURLを取得
+        function getModelUrlFromParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('model-view-src');
+        }
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            updateBackgroundColor();
+            
+            // URLパラメータにモデルURLがあれば読み込み
+            const modelUrl = getModelUrlFromParams();
+            if (modelUrl) {
+                console.log('Loading model from URL parameter:', modelUrl);
+                loadSampleModel(modelUrl);
+            }
+        });
+
+        // 外部クリックでコントロールパネルを閉じる
+        document.addEventListener('click', (e) => {
+            if (!lightControls.contains(e.target) && !lightControlButton.contains(e.target)) {
+                if (showControls) {
+                    showControls = false;
+                    lightControls.style.display = 'none';
+                }
+            }
+        });
+    </script>
+</body>
+</html>

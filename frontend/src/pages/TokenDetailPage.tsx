@@ -207,10 +207,6 @@ export const TokenDetailPage: React.FC = () => {
             <ModelViewer 
               modelUrl={url}
               alt={alt}
-              autoRotate={true}
-              initialExposure={0.7}
-              initialShadowIntensity={0.7}
-              initialBackgroundColor="black"
               className={styles.attributeModelViewer}
             />
           </div>
@@ -514,10 +510,6 @@ export const TokenDetailPage: React.FC = () => {
                   <ModelViewer 
                     modelUrl={metadata.animation_url} 
                     alt={metadata?.name || `Token #${token.tokenId}`}
-                    autoRotate={false}
-                    initialExposure={0.7}
-                    initialShadowIntensity={0.7}
-                    initialBackgroundColor="black"
                   />
                   <div className={styles.threeDLabel}>3D Model</div>
                 </div>
