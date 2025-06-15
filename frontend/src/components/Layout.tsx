@@ -43,10 +43,14 @@ export const Layout: React.FC = () => {
 
   // リンク生成用のヘルパー関数
   const createLink = (basePath: string, extraPath?: string) => {
+    // extraPathがnullやundefinedの場合は無効なリンクを避ける
+
     if (currentContractAddress && currentContractAddress !== CONTRACT_ADDRESS) {
       return extraPath
         ? `${basePath}/${currentContractAddress}/${extraPath}`
         : `${basePath}/${currentContractAddress}`;
+    } else if (basePath === "/own" && !extraPath) {
+      return "/own/" + CONTRACT_ADDRESS;
     }
     return extraPath ? `${basePath}/${extraPath}` : basePath;
   };
@@ -56,11 +60,14 @@ export const Layout: React.FC = () => {
       <header className={styles.header}>
         <div className={styles.headerContent}>
           <h1 className={styles.title}>
-            <Link to="/tokens" className={styles.titleLink}>
+            <Link to="/" className={styles.titleLink}>
               NFT Mint Store
             </Link>
           </h1>
           <nav className={styles.nav}>
+            <Link to={createLink("/collection")} className={styles.navLink}>
+              Collection
+            </Link>
             <Link to={createLink("/tokens")} className={styles.navLink}>
               Tokens
             </Link>

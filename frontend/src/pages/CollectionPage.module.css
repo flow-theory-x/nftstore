@@ -1,0 +1,97 @@
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  color: #333;
+  text-align: center;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.infoSection {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.sectionTitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background-color: white;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+}
+
+.infoLabel {
+  font-weight: 500;
+  color: #666;
+  font-size: 0.875rem;
+}
+
+.infoValue {
+  font-weight: 600;
+  color: #333;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.placeholder {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.placeholder h3 {
+  margin-bottom: 1rem;
+  color: #856404;
+}
+
+.placeholder ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.placeholder li {
+  padding: 0.5rem 0;
+  color: #856404;
+  border-bottom: 1px solid #f0e68c;
+}
+
+.placeholder li:last-child {
+  border-bottom: none;
+}
+
+@media (max-width: 768px) {
+  .infoGrid {
+    grid-template-columns: 1fr;
+  }
+}
