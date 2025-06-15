@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import ReactDOM from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import type { NFTToken } from "../types";
 import { ContractService } from "../utils/contract";
@@ -24,17 +25,23 @@ interface NFTCardProps {
   onTransfer?: () => void;
 }
 
-export const NFTCard: React.FC<NFTCardProps> = ({ token, contractAddress, onBurn, onTransfer }) => {
+export const NFTCard: React.FC<NFTCardProps> = ({
+  token,
+  contractAddress,
+  onBurn,
+  onTransfer,
+}) => {
   const { walletState, getSigner } = useWallet();
   const params = useParams<{ contractAddress?: string }>();
-  const currentContractAddress = contractAddress || params.contractAddress || CONTRACT_ADDRESS;
+  const currentContractAddress =
+    contractAddress || params.contractAddress || CONTRACT_ADDRESS;
   const [metadata, setMetadata] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [burning, setBurning] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [recipientAddress, setRecipientAddress] = useState('');
+  const [recipientAddress, setRecipientAddress] = useState("");
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -112,18 +119,18 @@ export const NFTCard: React.FC<NFTCardProps> = ({ token, contractAddress, onBurn
 
   const handleTransfer = async () => {
     if (!walletState.isConnected) {
-      alert('Please connect your wallet first');
+      alert("Please connect your wallet first");
       return;
     }
 
     if (!recipientAddress.trim()) {
-      alert('Please enter recipient address');
+      alert("Please enter recipient address");
       return;
     }
 
     const signer = getSigner();
     if (!signer) {
-      alert('No signer available');
+      alert("No signer available");
       return;
     }
 
@@ -136,24 +143,28 @@ export const NFTCard: React.FC<NFTCardProps> = ({ token, contractAddress, onBurn
     try {
       setTransferring(true);
       const contractService = new ContractService(currentContractAddress);
-      const tx = await contractService.transfer(token.tokenId, recipientAddress.trim(), signer);
+      const tx = await contractService.transfer(
+        token.tokenId,
+        recipientAddress.trim(),
+        signer
+      );
 
       alert(`Transfer transaction submitted! Hash: ${tx.hash}`);
 
       await tx.wait();
-      alert('NFT transferred successfully!');
+      alert("NFT transferred successfully!");
 
       // モーダルを閉じて、入力をリセット
       setShowTransferModal(false);
-      setRecipientAddress('');
+      setRecipientAddress("");
 
       // 親コンポーネントに通知
       if (onTransfer) {
         onTransfer();
       }
     } catch (err: any) {
-      console.error('Failed to transfer NFT:', err);
-      alert(err.message || 'Failed to transfer NFT');
+      console.error("Failed to transfer NFT:", err);
+      alert(err.message || "Failed to transfer NFT");
     } finally {
       setTransferring(false);
     }
@@ -166,10 +177,12 @@ export const NFTCard: React.FC<NFTCardProps> = ({ token, contractAddress, onBurn
 
   return (
     <div className={styles.nftCard}>
-      <Link 
-        to={currentContractAddress !== CONTRACT_ADDRESS 
-          ? `/token/${currentContractAddress}/${token.tokenId}` 
-          : `/token/${token.tokenId}`}
+      <Link
+        to={
+          currentContractAddress !== CONTRACT_ADDRESS
+            ? `/token/${currentContractAddress}/${token.tokenId}`
+            : `/token/${token.tokenId}`
+        }
         className={styles.imageLink}
       >
         <div className={styles.imageContainer}>
@@ -195,10 +208,12 @@ export const NFTCard: React.FC<NFTCardProps> = ({ token, contractAddress, onBurn
 
       <div className={styles.info}>
         <h3 className={styles.name}>
-          <Link 
-            to={currentContractAddress !== CONTRACT_ADDRESS 
-              ? `/token/${currentContractAddress}/${token.tokenId}` 
-              : `/token/${token.tokenId}`}
+          <Link
+            to={
+              currentContractAddress !== CONTRACT_ADDRESS
+                ? `/token/${currentContractAddress}/${token.tokenId}`
+                : `/token/${token.tokenId}`
+            }
             className={styles.nameLink}
           >
             {metadata?.name || `Token #${token.tokenId}`}
@@ -218,11 +233,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({ token, contractAddress, onBurn
           <div className={styles.detail}>
             <span className={styles.label}>Owner:</span>
             <div className={styles.ownerContainer}>
-              <Link
-                to={currentContractAddress !== CONTRACT_ADDRESS ? `/own/${currentContractAddress}/${token.owner}` : `/own/${token.owner}`}
-                className={`${styles.value} ${styles.ownerLink}`}
-                title={token.owner}
-              >
+              <Link to={`/own/${currentContractAddress}/${token.owner}`}>
                 {formatAddress(token.owner)}
               </Link>
               <button
@@ -269,48 +280,55 @@ export const NFTCard: React.FC<NFTCardProps> = ({ token, contractAddress, onBurn
           )}
         </div>
       </div>
-      
-      {/* Transfer Modal */}
-      {showTransferModal && (
-        <div className={styles.modal}>
-          <div className={styles.modalContent}>
-            <div className={styles.modalHeader}>
-              <h3>Send NFT</h3>
-              <button 
-                onClick={() => setShowTransferModal(false)}
-                className={styles.closeButton}
-              >
-                ×
-              </button>
+
+      {/* Transfer Modal - Rendered at the end of document body */}
+      {showTransferModal && 
+        ReactDOM.createPortal(
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalContent}>
+              <div className={styles.modalHeader}>
+                <h3>Send NFT</h3>
+                <button
+                  onClick={() => setShowTransferModal(false)}
+                  className={styles.closeButton}
+                >
+                  ×
+                </button>
+              </div>
+              <div className={styles.modalBody}>
+                <p>
+                  Send{" "}
+                  <strong>{metadata?.name || `Token #${token.tokenId}`}</strong>{" "}
+                  to:
+                </p>
+                <input
+                  type="text"
+                  placeholder="Recipient address (0x...)"
+                  value={recipientAddress}
+                  onChange={(e) => setRecipientAddress(e.target.value)}
+                  className={styles.addressInput}
+                />
+              </div>
+              <div className={styles.modalActions}>
+                <button
+                  onClick={() => setShowTransferModal(false)}
+                  className={styles.cancelButton}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleTransfer}
+                  disabled={transferring || !recipientAddress.trim()}
+                  className={styles.confirmButton}
+                >
+                  {transferring ? "Sending..." : "Send"}
+                </button>
+              </div>
             </div>
-            <div className={styles.modalBody}>
-              <p>Send <strong>{metadata?.name || `Token #${token.tokenId}`}</strong> to:</p>
-              <input
-                type="text"
-                placeholder="Recipient address (0x...)"
-                value={recipientAddress}
-                onChange={(e) => setRecipientAddress(e.target.value)}
-                className={styles.addressInput}
-              />
-            </div>
-            <div className={styles.modalActions}>
-              <button
-                onClick={() => setShowTransferModal(false)}
-                className={styles.cancelButton}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleTransfer}
-                disabled={transferring || !recipientAddress.trim()}
-                className={styles.confirmButton}
-              >
-                {transferring ? 'Sending...' : 'Send'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )
+      }
     </div>
   );
 };
