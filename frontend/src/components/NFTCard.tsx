@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import type { NFTToken } from "../types";
-import { NftContractService } from "../utils/contract";
+import { NftContractService } from "../utils/nftContract";
 import { CONTRACT_ADDRESS, OPENSEA_BASE_URL } from "../constants";
 import { useWallet } from "../hooks/useWallet";
 import styles from "./NFTCard.module.css";

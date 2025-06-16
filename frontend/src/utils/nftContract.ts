@@ -199,15 +199,36 @@ export class NftContractService {
         startIndex,
         batchSize
       );
-      const totalSupply = await this.getTotalSupply();
+      
+      // 全トークンIDリストをキャッシュから取得または作成
+      let allTokenIds = cacheService.getContractData<string[]>(this.contractAddress, 'allTokenIds');
+      if (!allTokenIds) {
+        console.log('🔗 Fetching all token IDs for sorting...');
+        const totalSupply = await this.getTotalSupply();
+        console.log('📊 Total supply:', totalSupply);
+        
+        allTokenIds = [];
+        for (let i = 0; i < totalSupply; i++) {
+          const tokenId = await this.getTokenByIndex(i);
+          allTokenIds.push(tokenId);
+        }
+        
+        // トークンIDで降順ソート（最新が最初）
+        allTokenIds.sort((a, b) => parseInt(b) - parseInt(a));
+        console.log('🔢 Sorted token IDs:', allTokenIds);
+        
+        // 1分間キャッシュ（新しいミントを考慮して短めに設定）
+        cacheService.setContractData(this.contractAddress, 'allTokenIds', allTokenIds);
+      } else {
+        console.log('📋 Using cached token IDs:', allTokenIds);
+      }
+      
+      // 指定されたバッチ範囲のトークンのみ詳細取得
+      const batchTokenIds = allTokenIds.slice(startIndex, startIndex + batchSize);
+      console.log('📦 Batch token IDs:', batchTokenIds);
+      
       const tokens: NFTToken[] = [];
-
-      // 降順で取得するため、最後のインデックスから逆順で取得
-      const actualStartIndex = totalSupply - 1 - startIndex;
-      const actualEndIndex = Math.max(actualStartIndex - batchSize + 1, 0);
-
-      for (let i = actualStartIndex; i >= actualEndIndex; i--) {
-        const tokenId = await this.getTokenByIndex(i);
+      for (const tokenId of batchTokenIds) {
         const owner = await this.getOwnerOf(tokenId);
         const tokenURI = await this.getTokenURI(tokenId);
 
@@ -220,7 +241,7 @@ export class NftContractService {
 
       const result = {
         tokens,
-        hasMore: actualEndIndex > 0,
+        hasMore: startIndex + batchSize < allTokenIds.length,
       };
 
       cacheService.setBatchTokens(

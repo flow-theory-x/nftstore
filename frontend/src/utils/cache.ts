@@ -112,9 +112,10 @@ export class CacheService {
     return this.localStorageCache.get<T>(key);
   }
 
-  setContractData<T>(contractAddress: string, method: string, data: T): void {
+  setContractData<T>(contractAddress: string, method: string, data: T, ttl?: number): void {
     const key = `contract_${contractAddress}_${method}`;
-    this.localStorageCache.set(key, data, 30 * 60 * 1000); // 30 minutes
+    const defaultTtl = method === 'allTokenIds' ? 1 * 60 * 1000 : 30 * 60 * 1000; // allTokenIds: 1分, その他: 30分
+    this.localStorageCache.set(key, data, ttl || defaultTtl);
   }
 
   // Token metadata cache (localStorage, 30 minutes TTL)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { NftContractService } from "../utils/contract";
+import { NftContractService } from "../utils/nftContract";
 import { useWallet } from "../hooks/useWallet";
 import {
   CONTRACT_ADDRESS,

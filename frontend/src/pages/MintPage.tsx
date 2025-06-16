@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { NftContractService } from "../utils/contract";
+import { NftContractService } from "../utils/nftContract";
 import { useWallet } from "../hooks/useWallet";
 import { CHAIN_ID, CHAIN_NAME, CURRENCY_SYMBOL } from "../constants";
 import styles from "./MintPage.module.css";
