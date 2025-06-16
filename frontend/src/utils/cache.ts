@@ -106,15 +106,15 @@ export class CacheService {
   private memoryCache = new MemoryCache();
   private localStorageCache = new LocalStorageCache();
 
-  // Contract metadata cache (in memory, 5 minutes TTL)
+  // Contract metadata cache (localStorage, 30 minutes TTL)
   getContractData<T>(contractAddress: string, method: string): T | null {
     const key = `contract_${contractAddress}_${method}`;
-    return this.memoryCache.get<T>(key);
+    return this.localStorageCache.get<T>(key);
   }
 
   setContractData<T>(contractAddress: string, method: string, data: T): void {
     const key = `contract_${contractAddress}_${method}`;
-    this.memoryCache.set(key, data, 5 * 60 * 1000); // 5 minutes
+    this.localStorageCache.set(key, data, 30 * 60 * 1000); // 30 minutes
   }
 
   // Token metadata cache (localStorage, 30 minutes TTL)
@@ -128,37 +128,37 @@ export class CacheService {
     this.localStorageCache.set(key, metadata, 30 * 60 * 1000); // 30 minutes
   }
 
-  // Token info cache (in memory, 2 minutes TTL)
+  // Token info cache (localStorage, 10 minutes TTL)
   getTokenInfo(contractAddress: string, tokenId: string): any | null {
     const key = `token_${contractAddress}_${tokenId}`;
-    return this.memoryCache.get(key);
+    return this.localStorageCache.get(key);
   }
 
   setTokenInfo(contractAddress: string, tokenId: string, info: any): void {
     const key = `token_${contractAddress}_${tokenId}`;
-    this.memoryCache.set(key, info, 2 * 60 * 1000); // 2 minutes
+    this.localStorageCache.set(key, info, 10 * 60 * 1000); // 10 minutes
   }
 
-  // Owner info cache (in memory, 1 minute TTL for more frequent updates)
+  // Owner info cache (localStorage, 5 minutes TTL for more frequent updates)
   getOwnerInfo(contractAddress: string, tokenId: string): string | null {
     const key = `owner_${contractAddress}_${tokenId}`;
-    return this.memoryCache.get(key);
+    return this.localStorageCache.get(key);
   }
 
   setOwnerInfo(contractAddress: string, tokenId: string, owner: string): void {
     const key = `owner_${contractAddress}_${tokenId}`;
-    this.memoryCache.set(key, owner, 1 * 60 * 1000); // 1 minute
+    this.localStorageCache.set(key, owner, 5 * 60 * 1000); // 5 minutes
   }
 
-  // Batch token data cache
+  // Batch token data cache (localStorage, 3 minutes TTL)
   getBatchTokens(contractAddress: string, startIndex: number, batchSize: number): any | null {
     const key = `batch_${contractAddress}_${startIndex}_${batchSize}`;
-    return this.memoryCache.get(key);
+    return this.localStorageCache.get(key);
   }
 
   setBatchTokens(contractAddress: string, startIndex: number, batchSize: number, tokens: any): void {
     const key = `batch_${contractAddress}_${startIndex}_${batchSize}`;
-    this.memoryCache.set(key, tokens, 1 * 60 * 1000); // 1 minute
+    this.localStorageCache.set(key, tokens, 3 * 60 * 1000); // 3 minutes
   }
 
   // Clear all cache

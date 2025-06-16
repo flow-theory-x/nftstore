@@ -54,6 +54,21 @@ export const CollectionPage: React.FC = () => {
                 TaigaNFT
               </a>
             </li>
+            <li>
+              <a href="/tokens/0x6C8b4094809CE7e5Ec1a44F7553Cf51b969C2aEb">
+                ShoNFT
+              </a>
+            </li>
+            <li>
+              <a href="/tokens/0x71a6aB788f4517086e23C4D8119BCA1f1cd11B94">
+                ToshiakiNFT
+              </a>
+            </li>
+            <li>
+              <a href="/tokens/0x503Fd31dDe07CFff8606BDe00e6360479C5E9c77">
+                Hozangama
+              </a>
+            </li>
           </ul>
         </div>
       </div>
