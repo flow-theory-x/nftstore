@@ -69,6 +69,29 @@
   text-align: center;
 }
 
+/* SBTセクション用の異なる色合い */
+.placeholder:nth-of-type(2) {
+  background-color: #fff3cd;
+  border: 1px solid #d1a550;
+}
+
+.placeholder:nth-of-type(2) h3 {
+  color: #856404;
+}
+
+.placeholder:nth-of-type(2) li {
+  color: #664d03;
+  border-bottom: 1px solid #d1a550;
+}
+
+.placeholder:nth-of-type(2) a {
+  color: #d1800e;
+}
+
+.placeholder:nth-of-type(2) a:hover {
+  color: #b8690e;
+}
+
 .placeholder h3 {
   margin-bottom: 1rem;
   color: #479785;
@@ -88,6 +111,38 @@
 
 .placeholder li:last-child {
   border-bottom: none;
+}
+
+.placeholder a {
+  color: #30bca7;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.placeholder a:hover {
+  color: #089781;
+  text-decoration: underline;
+}
+
+/* totalSupply数のスタイリング */
+.placeholder a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.placeholder a:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.loading {
+  color: #666;
+  font-style: italic;
+  padding: 1rem;
 }
 
 @media (max-width: 768px) {

@@ -7,6 +7,8 @@ import {
   CONTRACT_ADDRESS,
   OPENSEA_BASE_URL,
   MODEL_VIEWER_BASE_URL,
+  TBA_TARGET_NFT_CA_ADDRESSES,
+  TBA_TARGET_SBT_CA_ADDRESSES,
 } from "../constants";
 import type { NFTToken } from "../types";
 import styles from "./TokenDetailPage.module.css";
@@ -16,6 +18,7 @@ import sendIcon from "../assets/icons/send.svg";
 import backpackIcon from "../assets/icons/backpack.svg";
 import fireIcon from "../assets/icons/fire.svg";
 import { ModelViewer } from "../components/ModelViewer";
+import { NFTCard } from "../components/NFTCard";
 
 export const TokenDetailPage: React.FC = () => {
   const { contractAddress, tokenId } = useParams<{
@@ -43,7 +46,14 @@ export const TokenDetailPage: React.FC = () => {
     isDeployed: boolean;
     balance: string;
   } | null>(null);
-  const [tbaOwnedTokens, setTbaOwnedTokens] = useState<string[]>([]);
+  const [tbaOwnedTokensByContract, setTbaOwnedTokensByContract] = useState<{
+    [contractAddress: string]: {
+      tokens: string[];
+      tokenDetails: NFTToken[];
+      contractName: string;
+      loading: boolean;
+    };
+  }>({});
   const [loadingTbaTokens, setLoadingTbaTokens] = useState(false);
 
   const currentContractAddress = contractAddress || CONTRACT_ADDRESS;
@@ -116,40 +126,114 @@ export const TokenDetailPage: React.FC = () => {
     fetchTBAInfo();
   }, [tokenId, currentContractAddress]);
 
-  // TBA保有NFTを取得
+  // TBA保有NFTを取得（複数コントラクト対応）
   useEffect(() => {
-    const fetchTBAOwnedTokens = async () => {
-      if (!tbaInfo || !tbaInfo.isDeployed || !tbaInfo.accountAddress) return;
+    const fetchTBAOwnedTokensForAllContracts = async () => {
+      if (!tbaInfo || !tbaInfo.isDeployed || !tbaInfo.accountAddress) {
+        setTbaOwnedTokensByContract({});
+        return;
+      }
+
+      // NFTとSBTコントラクトを結合
+      const allTargetContracts = [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
+      
+      if (allTargetContracts.length === 0) {
+        console.warn("No TBA target contract addresses configured");
+        return;
+      }
 
       try {
         setLoadingTbaTokens(true);
         const { findTBAOwnedTokens } = await import("../utils/tbaTokenFinder");
         
-        // 指定されたコントラクトアドレスで検索
-        const targetContractAddress = "0xFcC45d28E7e51Cff6d8181Bd73023d46daf1fEd2";
-        
         console.log(`🔍 Searching for NFTs owned by TBA: ${tbaInfo.accountAddress}`);
-        console.log(`📋 Target contract: ${targetContractAddress}`);
+        console.log(`📋 NFT Target contracts: ${TBA_TARGET_NFT_CA_ADDRESSES.join(', ')}`);
+        console.log(`📋 SBT Target contracts: ${TBA_TARGET_SBT_CA_ADDRESSES.join(', ')}`);
         
-        // フォールバック検索を直接使用（より確実）
-        const ownedTokens = await findTBAOwnedTokens(
-          tbaInfo.accountAddress,
-          targetContractAddress,
-          "fallback" // フォールバック検索を強制
-        );
+        // 各コントラクトに対して並行処理
+        const contractPromises = allTargetContracts.map(async (contractAddress) => {
+          try {
+            // トークン検索
+            const ownedTokens = await findTBAOwnedTokens(
+              tbaInfo.accountAddress,
+              contractAddress,
+              "fallback" // フォールバック検索を強制
+            );
+            
+            console.log(`🎯 TBA owns ${ownedTokens.length} tokens from ${contractAddress}`);
+            
+            // コントラクト名を取得
+            const contractService = new NftContractService(contractAddress);
+            let contractName = "NFTs";
+            try {
+              contractName = await contractService.getName() || "NFTs";
+            } catch (err) {
+              console.warn(`Failed to fetch contract name for ${contractAddress}:`, err);
+            }
+            
+            // 各トークンの詳細情報を取得
+            const tokenDetails: NFTToken[] = [];
+            if (ownedTokens.length > 0) {
+              for (const tokenId of ownedTokens) {
+                try {
+                  const owner = await contractService.getOwnerOf(tokenId);
+                  const tokenURI = await contractService.getTokenURI(tokenId);
+                  
+                  tokenDetails.push({
+                    tokenId,
+                    owner,
+                    tokenURI,
+                  });
+                } catch (err) {
+                  console.error(`Failed to fetch details for token ${tokenId} from ${contractAddress}:`, err);
+                }
+              }
+            }
+            
+            return {
+              contractAddress,
+              tokens: ownedTokens,
+              tokenDetails,
+              contractName,
+              loading: false,
+            };
+          } catch (err) {
+            console.error(`Failed to fetch TBA owned tokens from ${contractAddress}:`, err);
+            return {
+              contractAddress,
+              tokens: [],
+              tokenDetails: [],
+              contractName: "NFTs",
+              loading: false,
+            };
+          }
+        });
         
-        setTbaOwnedTokens(ownedTokens);
-        console.log(`🎯 TBA ${tbaInfo.accountAddress} owns tokens:`, ownedTokens);
-        console.log(`📊 Found ${ownedTokens.length} tokens`);
+        // 全てのコントラクトの結果を待つ
+        const results = await Promise.all(contractPromises);
+        
+        // stateを更新
+        const newState: typeof tbaOwnedTokensByContract = {};
+        results.forEach(result => {
+          newState[result.contractAddress] = {
+            tokens: result.tokens,
+            tokenDetails: result.tokenDetails,
+            contractName: result.contractName,
+            loading: false,
+          };
+        });
+        
+        setTbaOwnedTokensByContract(newState);
+        console.log(`📊 Completed fetching TBA owned tokens for ${results.length} contracts`);
       } catch (err) {
         console.error("Failed to fetch TBA owned tokens:", err);
-        setTbaOwnedTokens([]);
+        setTbaOwnedTokensByContract({});
       } finally {
         setLoadingTbaTokens(false);
       }
     };
 
-    fetchTBAOwnedTokens();
+    fetchTBAOwnedTokensForAllContracts();
   }, [tbaInfo]);
 
   // 初期表示タブの設定
@@ -992,59 +1076,91 @@ export const TokenDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TBA Owned NFTs Section */}
+      {/* TBA Owned NFTs Section - Multiple Contracts */}
       {tbaInfo && tbaInfo.isDeployed && (
-        <div className={styles.container}>
-          <div className={styles.tbaOwnedSection}>
-            <h2 className={styles.title}>
-              <img
-                src={backpackIcon}
-                alt="TBA"
-                width="24"
-                height="24"
-                style={{ marginRight: "12px", verticalAlign: "middle" }}
-              />
-              TBA Owned NFTs
-            </h2>
-            
-            {loadingTbaTokens ? (
+        loadingTbaTokens ? (
+          <div className={styles.container}>
+            <div className={styles.tbaOwnedSection}>
+              <h2 className={styles.title}>
+                <img
+                  src={backpackIcon}
+                  alt="TBA"
+                  width="24"
+                  height="24"
+                  style={{ marginRight: "12px", verticalAlign: "middle" }}
+                />
+                TBA Owned NFTs
+              </h2>
               <div className={styles.loading}>Loading TBA owned NFTs...</div>
-            ) : tbaOwnedTokens.length > 0 ? (
+            </div>
+          </div>
+        ) : Object.entries(tbaOwnedTokensByContract).some(([_, contractData]) => contractData.tokenDetails.length > 0) ? (
+        <div className={styles.container}>
+          {Object.entries(tbaOwnedTokensByContract)
+            .filter(([contractAddress, contractData]) => contractData.tokenDetails.length > 0)
+            .map(([contractAddress, contractData]) => (
+            <div key={contractAddress} className={styles.tbaOwnedSection}>
+              <h2 className={styles.title}>
+                <img
+                  src={backpackIcon}
+                  alt="TBA"
+                  width="24"
+                  height="24"
+                  style={{ marginRight: "12px", verticalAlign: "middle" }}
+                />
+                TBA Owned{" "}
+                <Link
+                  to={`/tokens/${contractAddress}`}
+                  className={styles.tbaContractLink}
+                >
+                  {contractData.contractName}
+                </Link>
+              </h2>
+              
               <div>
                 <p style={{ color: "#666", marginBottom: "20px" }}>
-                  This TBA account owns {tbaOwnedTokens.length} NFT{tbaOwnedTokens.length > 1 ? 's' : ''} 
-                  from contract 0xFcC45d28E7e51Cff6d8181Bd73023d46daf1fEd2
+                  This TBA account owns {contractData.tokenDetails.length} {contractData.contractName} NFT{contractData.tokenDetails.length > 1 ? 's' : ''}
                 </p>
-                <div className={styles.tbaTokenGrid}>
-                  {tbaOwnedTokens.map((tokenId) => (
-                    <div key={tokenId} className={styles.tbaToken}>
-                      <div className={styles.tbaTokenId}>Token #{tokenId}</div>
-                      <div className={styles.tbaTokenActions}>
-                        <Link
-                          to={`/token/0xFcC45d28E7e51Cff6d8181Bd73023d46daf1fEd2/${tokenId}`}
-                          className={styles.tbaTokenLink}
-                        >
-                          View Details
-                        </Link>
-                        <button
-                          onClick={() => copyToClipboard(tokenId)}
-                          className={styles.copyButton}
-                          title="Copy Token ID"
-                        >
-                          <img src={copyIcon} alt="Copy" width="12" height="12" />
-                        </button>
-                      </div>
-                    </div>
+                <div className={styles.grid}>
+                  {contractData.tokenDetails.map((token) => (
+                    <NFTCard
+                      key={`${contractAddress}-${token.tokenId}`}
+                      token={token}
+                      contractAddress={contractAddress}
+                      onBurn={() => {
+                        // TBA保有NFTリストを再取得
+                        window.location.reload();
+                      }}
+                      onTransfer={() => {
+                        // TBA保有NFTリストを再取得
+                        window.location.reload();
+                      }}
+                    />
                   ))}
                 </div>
               </div>
-            ) : (
-              <p style={{ color: "#666" }}>
-                This TBA account doesn't own any NFTs from contract 0xFcC45d28E7e51Cff6d8181Bd73023d46daf1fEd2
-              </p>
-            )}
-          </div>
+            </div>
+          ))}
         </div>
+        ) : (
+          <div className={styles.container}>
+            <div className={styles.tbaOwnedSection}>
+              <h2 className={styles.title}>
+                <img
+                  src={backpackIcon}
+                  alt="TBA"
+                  width="24"
+                  height="24"
+                  style={{ marginRight: "12px", verticalAlign: "middle" }}
+                />
+                TBA Owned NFTs
+              </h2>
+              <p style={{ color: "#666" }}>
+                This TBA account doesn't own any NFTs from the configured contracts
+              </p>
+            </div>
+          </div>
+        )
       )}
 
       {/* Transfer Modal */}
