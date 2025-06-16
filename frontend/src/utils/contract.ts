@@ -1,10 +1,10 @@
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESS, RPC_URL } from "../constants";
 import type { NFTToken, ContractInfo } from "../types";
-import contractAbi from "../../config/abi.json";
+import contractAbi from "../../config/nft_abi.json";
 import { cacheService } from "./cache";
 
-export class ContractService {
+export class NftContractService {
   private provider: ethers.JsonRpcProvider;
   private contract: ethers.Contract;
   private contractAddress: string;

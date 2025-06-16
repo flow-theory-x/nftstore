@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import type { NFTToken } from "../types";
-import { ContractService } from "../utils/contract";
+import { NftContractService } from "../utils/contract";
 import { CONTRACT_ADDRESS, OPENSEA_BASE_URL } from "../constants";
 import { useWallet } from "../hooks/useWallet";
 import styles from "./NFTCard.module.css";
@@ -51,7 +51,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       }
 
       try {
-        const contractService = new ContractService(currentContractAddress);
+        const contractService = new NftContractService(currentContractAddress);
         const meta = await contractService.fetchMetadata(token.tokenURI);
         setMetadata(meta);
       } catch (err) {
@@ -98,7 +98,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
     try {
       setBurning(true);
-      const contractService = new ContractService(currentContractAddress);
+      const contractService = new NftContractService(currentContractAddress);
       const tx = await contractService.burn(token.tokenId, signer);
 
       alert(`Burn transaction submitted! Hash: ${tx.hash}`);
@@ -142,7 +142,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
     try {
       setTransferring(true);
-      const contractService = new ContractService(currentContractAddress);
+      const contractService = new NftContractService(currentContractAddress);
       const tx = await contractService.transfer(
         token.tokenId,
         recipientAddress.trim(),

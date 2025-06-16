@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { NFTCard } from '../components/NFTCard';
-import { ContractService } from '../utils/contract';
+import { NftContractService } from '../utils/contract';
 import type { NFTToken } from '../types';
 import { useWallet } from '../hooks/useWallet';
 import styles from './OwnedTokensPage.module.css';
@@ -32,7 +32,7 @@ export const OwnedTokensPage: React.FC = () => {
         setLoading(true);
         setError(null);
         
-        const contractService = new ContractService(contractAddress);
+        const contractService = new NftContractService(contractAddress);
         const ownedTokens = await contractService.getTokensByOwner(address);
         
         setTokens(ownedTokens);

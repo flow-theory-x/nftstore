@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ContractService } from "../utils/contract";
+import { NftContractService } from "../utils/contract";
 import { useWallet } from "../hooks/useWallet";
 import { CHAIN_ID, CHAIN_NAME, CURRENCY_SYMBOL } from "../constants";
 import styles from "./MintPage.module.css";
@@ -54,7 +54,7 @@ export const MintPage: React.FC = () => {
         setFetchingFee(true);
         setFetchingName(true);
         setFeeError(false);
-        const contractService = new ContractService(contractAddress);
+        const contractService = new NftContractService(contractAddress);
 
         const namePromise = contractService.getName();
         let feePromise;
@@ -158,7 +158,7 @@ export const MintPage: React.FC = () => {
       setError(null);
       setSuccess(null);
 
-      const contractService = new ContractService(contractAddress);
+      const contractService = new NftContractService(contractAddress);
       const currentFee = getCurrentFee();
       const tx = await contractService.mint(
         walletState.address!,

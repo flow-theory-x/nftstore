@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { NFTCard } from "../components/NFTCard";
-import { ContractService } from "../utils/contract";
+import { NftContractService } from "../utils/contract";
 import type { NFTToken } from "../types";
 import styles from "./TokensPage.module.css";
 
@@ -23,7 +23,7 @@ export const TokensPage: React.FC = () => {
 
   const fetchTokensBatch = async (startIndex: number) => {
     try {
-      const contractService = new ContractService(contractAddress);
+      const contractService = new NftContractService(contractAddress);
       const { tokens: newTokens, hasMore: moreTokens } =
         await contractService.getTokensBatch(startIndex, 3);
 
@@ -61,7 +61,7 @@ export const TokensPage: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        const contractService = new ContractService(contractAddress);
+        const contractService = new NftContractService(contractAddress);
 
         // コントラクト名を先に取得
         try {
