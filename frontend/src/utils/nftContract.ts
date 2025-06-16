@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { CONTRACT_ADDRESS, RPC_URL } from "../constants";
+import { CONTRACT_ADDRESS, RPC_URL, DEAD_ADDRESS } from "../constants";
 import type { NFTToken, ContractInfo } from "../types";
 import contractAbi from "../../config/nft_abi.json";
 import { cacheService } from "./cache";
@@ -158,6 +158,13 @@ export class NftContractService {
       for (let i = 0; i < totalSupply; i++) {
         const tokenId = await this.getTokenByIndex(i);
         const owner = await this.getOwnerOf(tokenId);
+        
+        // BURN済み（dead addressが所有）のトークンはスキップ
+        if (owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
+          console.log(`🔥 Skipping burned token: ${tokenId} (owner: ${owner})`);
+          continue;
+        }
+        
         const tokenURI = await this.getTokenURI(tokenId);
 
         tokens.push({
@@ -230,6 +237,13 @@ export class NftContractService {
       const tokens: NFTToken[] = [];
       for (const tokenId of batchTokenIds) {
         const owner = await this.getOwnerOf(tokenId);
+        
+        // BURN済み（dead addressが所有）のトークンはスキップ
+        if (owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
+          console.log(`🔥 Skipping burned token: ${tokenId} (owner: ${owner})`);
+          continue;
+        }
+        
         const tokenURI = await this.getTokenURI(tokenId);
 
         tokens.push({
@@ -265,6 +279,12 @@ export class NftContractService {
 
   async getTokensByOwner(owner: string): Promise<NFTToken[]> {
     try {
+      // BURN済み（dead address）のトークンは検索しない
+      if (owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
+        console.log(`🔥 Skipping tokens for burned address: ${owner}`);
+        return [];
+      }
+      
       const balance = await this.getBalanceOf(owner);
       const tokens: NFTToken[] = [];
 

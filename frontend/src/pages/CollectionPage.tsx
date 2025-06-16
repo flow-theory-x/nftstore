@@ -16,6 +16,11 @@ export const CollectionPage: React.FC = () => {
     contractName: string;
     totalSupply: number;
   }[]>([]);
+  const [sbtZeroSupplyFeatures, setSbtZeroSupplyFeatures] = useState<{
+    contractAddress: string;
+    contractName: string;
+    totalSupply: number;
+  }[]>([]);
   const [loadingNft, setLoadingNft] = useState(true);
   const [loadingSbt, setLoadingSbt] = useState(true);
 
@@ -103,10 +108,12 @@ export const CollectionPage: React.FC = () => {
         });
         
         const results = await Promise.all(contractPromises);
-        // totalSupplyが0より大きいコントラクトのみをフィルタリング
+        // totalSupplyが0より大きいコントラクトと0のコントラクトを分離
         const filteredResults = results.filter(result => result.totalSupply > 0);
+        const zeroSupplyResults = results.filter(result => result.totalSupply === 0);
         setSbtCollectionFeatures(filteredResults);
-        console.log(`✅ Fetched ${results.length} SBT contracts, ${filteredResults.length} with tokens`);
+        setSbtZeroSupplyFeatures(zeroSupplyResults);
+        console.log(`✅ Fetched ${results.length} SBT contracts, ${filteredResults.length} with tokens, ${zeroSupplyResults.length} with zero supply`);
       } catch (err) {
         console.error("Failed to fetch SBT collection features:", err);
         setSbtCollectionFeatures([]);
@@ -174,9 +181,33 @@ export const CollectionPage: React.FC = () => {
               ))}
             </ul>
           ) : (
-            <p>No SBT collections configured</p>
+            <p>No SBT collections with tokens</p>
           )}
         </div>
+
+        {/* Zero Supply SBT Collections */}
+        {sbtZeroSupplyFeatures.length > 0 && (
+          <div className={styles.placeholder} style={{ 
+            backgroundColor: '#fff5f5', 
+            borderColor: '#fed7d7',
+            borderWidth: '1px',
+            borderStyle: 'solid'
+          }}>
+            <h3 style={{ color: '#c53030' }}>Collections with Zero Supply</h3>
+            <ul>
+              {sbtZeroSupplyFeatures.map((feature) => (
+                <li key={feature.contractAddress}>
+                  <a href={`/mint/${feature.contractAddress}`} style={{ 
+                    color: '#e53e3e',
+                    opacity: 0.8
+                  }}>
+                    <span>{feature.contractName}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className={styles.infoSection}>
           <h2 className={styles.sectionTitle}>Collection Information</h2>

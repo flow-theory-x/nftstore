@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import type { NFTToken } from "../types";
 import { NftContractService } from "../utils/nftContract";
 import { TbaService } from "../utils/tbaService";
-import { CONTRACT_ADDRESS, OPENSEA_BASE_URL } from "../constants";
+import { CONTRACT_ADDRESS, OPENSEA_BASE_URL, TBA_TARGET_SBT_CA_ADDRESSES } from "../constants";
 import { useWallet } from "../hooks/useWallet";
 import styles from "./NFTCard.module.css";
 // Option 1: Import as React components (current approach)
@@ -320,14 +320,16 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
           {isOwner && (
             <>
-              <button
-                onClick={() => setShowTransferModal(true)}
-                disabled={transferring}
-                className={styles.transferButton}
-                title={transferring ? "Transferring..." : "Send NFT"}
-              >
-                <img src={sendIcon} alt="Send" width="16" height="16" />
-              </button>
+              {!TBA_TARGET_SBT_CA_ADDRESSES.includes(contractAddress || "") && (
+                <button
+                  onClick={() => setShowTransferModal(true)}
+                  disabled={transferring}
+                  className={styles.transferButton}
+                  title={transferring ? "Transferring..." : "Send NFT"}
+                >
+                  <img src={sendIcon} alt="Send" width="16" height="16" />
+                </button>
+              )}
               <button
                 onClick={handleBurn}
                 disabled={burning}

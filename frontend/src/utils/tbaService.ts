@@ -4,6 +4,7 @@ import {
   TBA_REGISTRY_ADDRESS,
   TBA_ACCOUNT_IMPLEMENTATION,
   CHAIN_ID,
+  DEAD_ADDRESS,
 } from "../constants";
 import tbaRegistryAbi from "../../config/tba_registry_abi.json";
 import tbaAccountAbi from "../../config/tba_account_abi.json";
@@ -311,6 +312,12 @@ export class TbaService {
         
         ownershipChecks.forEach((result) => {
           if (result.status === 'fulfilled' && result.value.owner) {
+            // BURN済み（dead addressが所有）のトークンはスキップ
+            if (result.value.owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
+              console.log(`🔥 Skipping burned token: ${result.value.tokenId} (owner: ${result.value.owner})`);
+              return;
+            }
+            
             if (result.value.owner.toLowerCase() === accountAddress.toLowerCase()) {
               ownedTokens.push(result.value.tokenId);
             }

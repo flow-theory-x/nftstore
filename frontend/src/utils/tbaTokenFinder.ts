@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { RPC_URL } from "../constants";
+import { RPC_URL, DEAD_ADDRESS } from "../constants";
 
 /**
  * 指定されたアドレスが保有するNFTを検索する独立したユーティリティ
@@ -79,6 +79,13 @@ export class TBATokenFinder {
           batch.map(async (tokenId) => {
             try {
               const currentOwner = await (contract as any).ownerOf(tokenId);
+              
+              // BURN済み（dead addressが所有）のトークンはスキップ
+              if (currentOwner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
+                console.log(`🔥 Skipping burned token: ${tokenId} (owner: ${currentOwner})`);
+                return { tokenId, isOwned: false };
+              }
+              
               return {
                 tokenId,
                 isOwned: currentOwner.toLowerCase() === ownerAddress.toLowerCase()
@@ -220,6 +227,13 @@ export class TBATokenFinder {
               const value = result.value;
               if (value.success && value.owner) {
                 console.log(`🔍 Token ${value.tokenId} owned by: ${value.owner}`);
+                
+                // BURN済み（dead addressが所有）のトークンはスキップ
+                if (value.owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
+                  console.log(`🔥 Skipping burned token: ${value.tokenId} (owner: ${value.owner})`);
+                  return;
+                }
+                
                 if (value.owner.toLowerCase() === ownerAddress.toLowerCase()) {
                   ownedTokens.push(value.tokenId);
                   console.log(`✅ Range search found owned token: ${value.tokenId}`);

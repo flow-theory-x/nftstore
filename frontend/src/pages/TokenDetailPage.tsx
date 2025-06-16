@@ -999,20 +999,22 @@ export const TokenDetailPage: React.FC = () => {
 
             {isOwner && (
               <>
-                <button
-                  onClick={() => setShowTransferModal(true)}
-                  disabled={transferring}
-                  className={styles.transferButton}
-                >
-                  <img
-                    src={sendIcon}
-                    alt="Send"
-                    width="16"
-                    height="16"
-                    style={{ marginRight: "8px" }}
-                  />
-                  {transferring ? "Transferring..." : "Transfer NFT"}
-                </button>
+                {!TBA_TARGET_SBT_CA_ADDRESSES.includes(contractAddress || "") && (
+                  <button
+                    onClick={() => setShowTransferModal(true)}
+                    disabled={transferring}
+                    className={styles.transferButton}
+                  >
+                    <img
+                      src={sendIcon}
+                      alt="Send"
+                      width="16"
+                      height="16"
+                      style={{ marginRight: "8px" }}
+                    />
+                    {transferring ? "Transferring..." : "Transfer NFT"}
+                  </button>
+                )}
 
                 {tbaInfo && tbaInfo.accountAddress && !tbaInfo.isDeployed ? (
                   <button
