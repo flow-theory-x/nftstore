@@ -590,6 +590,47 @@
   cursor: not-allowed;
 }
 
+.tbaButton {
+  width: 100%;
+  padding: 12px 20px;
+  background-color: #6f42c1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.tbaButton:hover:not(:disabled) {
+  background-color: #5a359e;
+}
+
+.tbaButton:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.tbaInfo {
+  width: 100%;
+  padding: 12px 20px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  text-align: center;
+  font-family: monospace;
+}
+
+.tbaBalance {
+  font-size: 12px;
+  color: #666;
+  margin-left: 8px;
+}
+
 .loading,
 .error {
   display: flex;
@@ -740,4 +781,78 @@
 .confirmButton:disabled {
   background-color: #6c757d;
   cursor: not-allowed;
+}
+
+/* TBA Owned NFTs Section */
+.tbaOwnedSection {
+  margin-top: 40px;
+  padding: 30px;
+  background-color: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e9ecef;
+}
+
+.tbaTokenGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.tbaToken {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid #dee2e6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s;
+}
+
+.tbaToken:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tbaTokenId {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.tbaTokenActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tbaTokenLink {
+  flex: 1;
+  display: inline-block;
+  padding: 8px 16px;
+  background-color: #30bca7;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  transition: background-color 0.2s;
+}
+
+.tbaTokenLink:hover {
+  background-color: #089781;
+  color: white;
+  text-decoration: none;
+}
+
+@media (max-width: 768px) {
+  .tbaOwnedSection {
+    margin-top: 30px;
+    padding: 20px;
+  }
+  
+  .tbaTokenGrid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }

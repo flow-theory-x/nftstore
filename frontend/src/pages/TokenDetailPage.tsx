@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { NftContractService } from "../utils/nftContract";
+import { TbaService } from "../utils/tbaService";
 import { useWallet } from "../hooks/useWallet";
 import {
   CONTRACT_ADDRESS,
@@ -12,6 +13,7 @@ import styles from "./TokenDetailPage.module.css";
 import copyIcon from "../assets/icons/copy.svg";
 import yachtIcon from "../assets/icons/yacht.svg";
 import sendIcon from "../assets/icons/send.svg";
+import backpackIcon from "../assets/icons/backpack.svg";
 import fireIcon from "../assets/icons/fire.svg";
 import { ModelViewer } from "../components/ModelViewer";
 
@@ -33,6 +35,16 @@ export const TokenDetailPage: React.FC = () => {
   const [activeMediaType, setActiveMediaType] = useState<
     "animation" | "external" | "youtube" | "image"
   >("animation");
+
+  // TBA関連の状態
+  const [creatingTBA, setCreatingTBA] = useState(false);
+  const [tbaInfo, setTbaInfo] = useState<{
+    accountAddress: string;
+    isDeployed: boolean;
+    balance: string;
+  } | null>(null);
+  const [tbaOwnedTokens, setTbaOwnedTokens] = useState<string[]>([]);
+  const [loadingTbaTokens, setLoadingTbaTokens] = useState(false);
 
   const currentContractAddress = contractAddress || CONTRACT_ADDRESS;
 
@@ -82,6 +94,63 @@ export const TokenDetailPage: React.FC = () => {
 
     fetchTokenDetail();
   }, [contractAddress, tokenId, currentContractAddress]);
+
+  // TBA情報を取得
+  useEffect(() => {
+    const fetchTBAInfo = async () => {
+      if (!tokenId || !currentContractAddress) return;
+
+      try {
+        const tbaService = new TbaService();
+        const info = await tbaService.getAccountInfo(
+          currentContractAddress,
+          tokenId
+        );
+        setTbaInfo(info);
+      } catch (err) {
+        console.error("Failed to fetch TBA info:", err);
+        setTbaInfo(null);
+      }
+    };
+
+    fetchTBAInfo();
+  }, [tokenId, currentContractAddress]);
+
+  // TBA保有NFTを取得
+  useEffect(() => {
+    const fetchTBAOwnedTokens = async () => {
+      if (!tbaInfo || !tbaInfo.isDeployed || !tbaInfo.accountAddress) return;
+
+      try {
+        setLoadingTbaTokens(true);
+        const { findTBAOwnedTokens } = await import("../utils/tbaTokenFinder");
+        
+        // 指定されたコントラクトアドレスで検索
+        const targetContractAddress = "0xFcC45d28E7e51Cff6d8181Bd73023d46daf1fEd2";
+        
+        console.log(`🔍 Searching for NFTs owned by TBA: ${tbaInfo.accountAddress}`);
+        console.log(`📋 Target contract: ${targetContractAddress}`);
+        
+        // フォールバック検索を直接使用（より確実）
+        const ownedTokens = await findTBAOwnedTokens(
+          tbaInfo.accountAddress,
+          targetContractAddress,
+          "fallback" // フォールバック検索を強制
+        );
+        
+        setTbaOwnedTokens(ownedTokens);
+        console.log(`🎯 TBA ${tbaInfo.accountAddress} owns tokens:`, ownedTokens);
+        console.log(`📊 Found ${ownedTokens.length} tokens`);
+      } catch (err) {
+        console.error("Failed to fetch TBA owned tokens:", err);
+        setTbaOwnedTokens([]);
+      } finally {
+        setLoadingTbaTokens(false);
+      }
+    };
+
+    fetchTBAOwnedTokens();
+  }, [tbaInfo]);
 
   // 初期表示タブの設定
   useEffect(() => {
@@ -382,6 +451,47 @@ export const TokenDetailPage: React.FC = () => {
       alert(err.message || "Failed to burn NFT");
     } finally {
       setBurning(false);
+    }
+  };
+
+  const handleCreateTBA = async () => {
+    if (!walletState.isConnected || !token) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    const signer = getSigner();
+    if (!signer) {
+      alert("Failed to get signer");
+      return;
+    }
+
+    try {
+      setCreatingTBA(true);
+      const tbaService = new TbaService();
+
+      const tx = await tbaService.createAccountForToken(
+        currentContractAddress,
+        token.tokenId,
+        signer
+      );
+
+      alert(`TBA creation transaction submitted! Hash: ${tx.hash}`);
+
+      await tx.wait();
+      alert("TBA account created successfully!");
+
+      // TBA情報を再取得
+      const info = await tbaService.getAccountInfo(
+        currentContractAddress,
+        token.tokenId
+      );
+      setTbaInfo(info);
+    } catch (err: any) {
+      console.error("Failed to create TBA:", err);
+      alert(err.message || "Failed to create TBA account");
+    } finally {
+      setCreatingTBA(false);
     }
   };
 
@@ -728,6 +838,36 @@ export const TokenDetailPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {tbaInfo && tbaInfo.accountAddress && tbaInfo.isDeployed && (
+                <div className={styles.property}>
+                  <span className={styles.propertyLabel}>TBA Account</span>
+                  <div className={styles.propertyValue}>
+                    <span className={styles.address}>
+                      {formatAddress(tbaInfo.accountAddress)}
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(tbaInfo.accountAddress)}
+                      className={styles.copyButton}
+                      title="Copy TBA Address"
+                    >
+                      <img src={copyIcon} alt="Copy" width="14" height="14" />
+                    </button>
+                    {tbaInfo.isDeployed && tbaInfo.balance !== "0.0" && (
+                      <span
+                        style={{
+                          marginLeft: "8px",
+                          fontSize: "12px",
+                          color: "#666",
+                        }}
+                      >
+                        ({tbaInfo.balance}{" "}
+                        {import.meta.env.VITE_CURRENCY_SYMBOL})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -789,6 +929,49 @@ export const TokenDetailPage: React.FC = () => {
                   />
                   {transferring ? "Transferring..." : "Transfer NFT"}
                 </button>
+
+                {tbaInfo && tbaInfo.accountAddress && !tbaInfo.isDeployed ? (
+                  <button
+                    onClick={handleCreateTBA}
+                    disabled={creatingTBA}
+                    className={styles.tbaButton}
+                  >
+                    <img
+                      src={backpackIcon}
+                      alt="TBA"
+                      width="16"
+                      height="16"
+                      style={{ marginRight: "8px" }}
+                    />
+                    {creatingTBA ? "Creating TBA..." : "Create TBA Account"}
+                  </button>
+                ) : tbaInfo && tbaInfo.accountAddress && tbaInfo.isDeployed ? (
+                  <div className={styles.tbaInfo}>
+                    <img
+                      src={backpackIcon}
+                      alt="TBA"
+                      width="16"
+                      height="16"
+                      style={{ marginRight: "8px" }}
+                    />
+                    TBA: {tbaInfo.accountAddress.slice(0, 6)}...
+                    {tbaInfo.accountAddress.slice(-4)}
+                    <button
+                      onClick={() => copyToClipboard(tbaInfo.accountAddress)}
+                      className={styles.copyButton}
+                      title="Copy TBA Address"
+                    >
+                      <img src={copyIcon} alt="Copy" width="14" height="14" />
+                    </button>
+                    {tbaInfo.balance !== "0.0" && (
+                      <span className={styles.tbaBalance}>
+                        ({tbaInfo.balance}{" "}
+                        {import.meta.env.VITE_CURRENCY_SYMBOL})
+                      </span>
+                    )}
+                  </div>
+                ) : null}
+
                 <button
                   onClick={handleBurn}
                   disabled={burning}
@@ -808,6 +991,61 @@ export const TokenDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* TBA Owned NFTs Section */}
+      {tbaInfo && tbaInfo.isDeployed && (
+        <div className={styles.container}>
+          <div className={styles.tbaOwnedSection}>
+            <h2 className={styles.title}>
+              <img
+                src={backpackIcon}
+                alt="TBA"
+                width="24"
+                height="24"
+                style={{ marginRight: "12px", verticalAlign: "middle" }}
+              />
+              TBA Owned NFTs
+            </h2>
+            
+            {loadingTbaTokens ? (
+              <div className={styles.loading}>Loading TBA owned NFTs...</div>
+            ) : tbaOwnedTokens.length > 0 ? (
+              <div>
+                <p style={{ color: "#666", marginBottom: "20px" }}>
+                  This TBA account owns {tbaOwnedTokens.length} NFT{tbaOwnedTokens.length > 1 ? 's' : ''} 
+                  from contract 0xFcC45d28E7e51Cff6d8181Bd73023d46daf1fEd2
+                </p>
+                <div className={styles.tbaTokenGrid}>
+                  {tbaOwnedTokens.map((tokenId) => (
+                    <div key={tokenId} className={styles.tbaToken}>
+                      <div className={styles.tbaTokenId}>Token #{tokenId}</div>
+                      <div className={styles.tbaTokenActions}>
+                        <Link
+                          to={`/token/0xFcC45d28E7e51Cff6d8181Bd73023d46daf1fEd2/${tokenId}`}
+                          className={styles.tbaTokenLink}
+                        >
+                          View Details
+                        </Link>
+                        <button
+                          onClick={() => copyToClipboard(tokenId)}
+                          className={styles.copyButton}
+                          title="Copy Token ID"
+                        >
+                          <img src={copyIcon} alt="Copy" width="12" height="12" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p style={{ color: "#666" }}>
+                This TBA account doesn't own any NFTs from contract 0xFcC45d28E7e51Cff6d8181Bd73023d46daf1fEd2
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Transfer Modal */}
       {showTransferModal && (
