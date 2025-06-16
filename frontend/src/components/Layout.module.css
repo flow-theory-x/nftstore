@@ -21,6 +21,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 2rem;
+  position: relative;
 }
 
 .title {
@@ -38,9 +39,98 @@
   color: #30bca7;
 }
 
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.menuButton {
+  display: none;
+  flex-direction: column;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  gap: 4px;
+}
+
+.hamburger {
+  width: 20px;
+  height: 2px;
+  background-color: #333;
+  transition: all 0.3s;
+}
+
 .nav {
   display: flex;
   gap: 1rem;
+}
+
+.desktopWallet {
+  display: block;
+}
+
+.mobileWallet {
+  display: none;
+}
+
+.mobileNav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .headerContent {
+    position: relative;
+  }
+
+  .desktopWallet {
+    display: none;
+  }
+
+  .mobileWallet {
+    display: block;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #f0f0f0;
+    margin-top: 0.5rem;
+  }
+
+  .menuButton {
+    display: flex;
+  }
+
+  .nav {
+    display: none;
+  }
+
+  .mobileNav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 1rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 200px;
+    z-index: 1000;
+  }
+
+  .mobileNavOpen {
+    display: flex;
+  }
+
+  .mobileNav .navLink {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .mobileNav .navLink:last-child {
+    border-bottom: none;
+  }
 }
 
 .navLink {

@@ -1,23 +1,26 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useWallet } from '../hooks/useWallet';
-import { CHAIN_ID } from '../constants';
-import styles from './WalletConnect.module.css';
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { useWallet } from "../hooks/useWallet";
+import { CHAIN_ID } from "../constants";
+import { WalletIcon, DisconnectWalletIcon } from "../assets/icons";
+import styles from "./WalletConnect.module.css";
 
 export const WalletConnect: React.FC = () => {
   const navigate = useNavigate();
-  const { walletState, isLoading, error, connectWallet, disconnectWallet } = useWallet();
+  const { walletState, isLoading, error, connectWallet, disconnectWallet } =
+    useWallet();
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const isWrongNetwork = walletState.chainId && walletState.chainId !== CHAIN_ID;
+  const isWrongNetwork =
+    walletState.chainId && walletState.chainId !== CHAIN_ID;
 
   return (
     <div className={styles.walletConnect}>
       {error && <div className={styles.error}>{error}</div>}
-      
+
       {!walletState.isConnected ? (
         <button
           onClick={async () => {
@@ -33,7 +36,8 @@ export const WalletConnect: React.FC = () => {
           disabled={isLoading}
           className={styles.connectButton}
         >
-          {isLoading ? 'Connecting...' : 'Connect Wallet'}
+          {isLoading ? "Connecting..." : "Connect Wallet"}
+          <WalletIcon style={{ marginLeft: "6px" }} />
         </button>
       ) : (
         <div className={styles.connectedInfo}>
@@ -48,8 +52,9 @@ export const WalletConnect: React.FC = () => {
           <button
             onClick={disconnectWallet}
             className={styles.disconnectButton}
+            title="Disconnect Wallet"
           >
-            Disconnect
+            <DisconnectWalletIcon />
           </button>
         </div>
       )}

@@ -23,3 +23,6 @@ export const COPYRIGHT_URL = import.meta.env.VITE_COPYRIGHT_URL || "";
 // External link information
 export const EXTERNAL_LINK_NAME = import.meta.env.VITE_EXTERNAL_LINK_NAME || "";
 export const EXTERNAL_LINK_URL = import.meta.env.VITE_EXTERNAL_LINK_URL || "";
+
+// Model viewer information
+export const MODEL_VIEWER_BASE_URL = import.meta.env.VITE_MODEL_VIEWER_BASE_URL || "https://goodsun.github.io/modelviewer";

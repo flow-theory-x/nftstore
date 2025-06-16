@@ -8,34 +8,7 @@ export const CollectionPage: React.FC = () => {
   return (
     <div className={styles.container}>
       <h1 className={styles.title}>Collection</h1>
-
       <div className={styles.content}>
-        <div className={styles.infoSection}>
-          <h2 className={styles.sectionTitle}>Collection Information</h2>
-          <div className={styles.infoGrid}>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>Contract Address:</span>
-              <span className={styles.infoValue}>
-                {contractAddress || "Not specified"}
-              </span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>Collection Name:</span>
-              <span className={styles.infoValue}>Sample Collection</span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>Description:</span>
-              <span className={styles.infoValue}>
-                This is a sample collection page. More features coming soon.
-              </span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>Total Supply:</span>
-              <span className={styles.infoValue}>1000</span>
-            </div>
-          </div>
-        </div>
-
         <div className={styles.placeholder}>
           <h3>Collection Features</h3>
           <ul>
@@ -70,6 +43,32 @@ export const CollectionPage: React.FC = () => {
               </a>
             </li>
           </ul>
+        </div>
+
+        <div className={styles.infoSection}>
+          <h2 className={styles.sectionTitle}>Collection Information</h2>
+          <div className={styles.infoGrid}>
+            <div className={styles.infoItem}>
+              <span className={styles.infoLabel}>Contract Address:</span>
+              <span className={styles.infoValue}>
+                {contractAddress || "Not specified"}
+              </span>
+            </div>
+            <div className={styles.infoItem}>
+              <span className={styles.infoLabel}>Collection Name:</span>
+              <span className={styles.infoValue}>Sample Collection</span>
+            </div>
+            <div className={styles.infoItem}>
+              <span className={styles.infoLabel}>Description:</span>
+              <span className={styles.infoValue}>
+                This is a sample collection page. More features coming soon.
+              </span>
+            </div>
+            <div className={styles.infoItem}>
+              <span className={styles.infoLabel}>Total Supply:</span>
+              <span className={styles.infoValue}>1000</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

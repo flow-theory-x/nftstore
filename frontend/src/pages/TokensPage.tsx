@@ -94,8 +94,7 @@ export const TokensPage: React.FC = () => {
       !initialized ||
       !hasMore ||
       loading ||
-      isLoadingMore ||
-      tokens.length === 0
+      isLoadingMore
     )
       return;
 
@@ -103,11 +102,15 @@ export const TokensPage: React.FC = () => {
     const timer = setTimeout(() => {
       if (!hasMore || loading || isLoadingMore) return;
 
+      console.log('🔄 Auto-loading more tokens:', { currentTokens: tokens.length, hasMore, loading, isLoadingMore });
+
       const loadMoreTokens = async () => {
         setIsLoadingMore(true);
         try {
-          await fetchTokensBatch(tokens.length);
+          const newTokenCount = await fetchTokensBatch(tokens.length);
+          console.log('✅ Auto-loaded tokens:', newTokenCount);
         } catch (err: any) {
+          console.error('❌ Auto-load failed:', err);
           setError(err.message || "Failed to fetch more tokens");
         } finally {
           setIsLoadingMore(false);

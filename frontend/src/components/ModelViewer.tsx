@@ -1,5 +1,6 @@
 import React from "react";
 import styles from "./ModelViewer.module.css";
+import { MODEL_VIEWER_BASE_URL } from "../constants";
 
 interface ModelViewerProps {
   modelUrl: string;
@@ -12,7 +13,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   alt = "3D Model",
   className,
 }) => {
-  const viewerUrl = `https://goodsun.github.io/modelviewer/?src=${encodeURIComponent(
+  const viewerUrl = `${MODEL_VIEWER_BASE_URL}/?src=${encodeURIComponent(
     modelUrl
   )}`;
 

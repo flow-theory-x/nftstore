@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { WalletConnect } from "./WalletConnect";
 import { useWallet } from "../hooks/useWallet";
@@ -15,6 +15,7 @@ import styles from "./Layout.module.css";
 export const Layout: React.FC = () => {
   const { walletState } = useWallet();
   const location = useLocation();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // URLから現在のcontractAddressを取得
   const getContractAddressFromPath = () => {
@@ -91,7 +92,63 @@ export const Layout: React.FC = () => {
               </a>
             )}
           </nav>
-          <WalletConnect />
+          <div className={styles.headerRight}>
+            <div className={styles.desktopWallet}>
+              <WalletConnect />
+            </div>
+            <button
+              className={styles.menuButton}
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              <span className={styles.hamburger}></span>
+              <span className={styles.hamburger}></span>
+              <span className={styles.hamburger}></span>
+            </button>
+          </div>
+          <nav className={`${styles.mobileNav} ${isMenuOpen ? styles.mobileNavOpen : ''}`}>
+            <Link 
+              to={createLink("/collection")} 
+              className={styles.navLink}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Collection
+            </Link>
+            <Link 
+              to={createLink("/tokens")} 
+              className={styles.navLink}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Tokens
+            </Link>
+            <Link
+              to={createLink("/own", walletState.address)}
+              className={styles.navLink}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Own
+            </Link>
+            <Link 
+              to={createLink("/mint")} 
+              className={styles.navLink}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Mint
+            </Link>
+            {EXTERNAL_LINK_NAME && EXTERNAL_LINK_URL && (
+              <a
+                href={EXTERNAL_LINK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.navLink}
+                onClick={() => setIsMenuOpen(false)}
+              >
+                {EXTERNAL_LINK_NAME}
+              </a>
+            )}
+            <div className={styles.mobileWallet}>
+              <WalletConnect />
+            </div>
+          </nav>
         </div>
       </header>
       <main className={styles.main}>

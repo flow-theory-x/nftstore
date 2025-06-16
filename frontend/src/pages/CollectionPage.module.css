@@ -62,8 +62,8 @@
 }
 
 .placeholder {
-  background-color: #fff3cd;
-  border: 1px solid #ffeaa7;
+  background-color: #defff8;
+  border: 1px solid #89afaf;
   border-radius: 12px;
   padding: 2rem;
   text-align: center;
@@ -71,7 +71,7 @@
 
 .placeholder h3 {
   margin-bottom: 1rem;
-  color: #856404;
+  color: #479785;
 }
 
 .placeholder ul {
@@ -83,7 +83,7 @@
 .placeholder li {
   padding: 0.5rem 0;
   color: #856404;
-  border-bottom: 1px solid #f0e68c;
+  border-bottom: 1px solid #aedbdb;
 }
 
 .placeholder li:last-child {

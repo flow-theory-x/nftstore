@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ContractService } from "../utils/contract";
 import { useWallet } from "../hooks/useWallet";
-import { CONTRACT_ADDRESS, OPENSEA_BASE_URL } from "../constants";
+import { CONTRACT_ADDRESS, OPENSEA_BASE_URL, MODEL_VIEWER_BASE_URL } from "../constants";
 import type { NFTToken } from "../types";
 import styles from "./TokenDetailPage.module.css";
 import copyIcon from "../assets/icons/copy.svg";
@@ -610,17 +610,17 @@ export const TokenDetailPage: React.FC = () => {
           {/* External URLボタン（プレビューの下に表示） */}
           {(metadata?.external_url || metadata?.animation_url) && (
             <div className={styles.externalActions}>
-              {metadata?.animation_url && (
+              {metadata?.animation_url && is3DContent(metadata.animation_url, animationMimeType) && (
                 <a
                   href={
-                    "https://goodsun.github.io/modelviewer/?src=" +
+                    MODEL_VIEWER_BASE_URL + "/?src=" +
                     metadata.animation_url
                   }
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.externalLink}
                 >
-                  Open 3D Viewer
+                  🎬 Open 3D Viewer
                 </a>
               )}
               {metadata?.external_url && (

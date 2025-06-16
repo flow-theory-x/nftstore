@@ -221,7 +221,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
         </h3>
 
         {metadata?.description && (
-          <p className={styles.description}>{metadata.description}</p>
+          <p className={styles.description} style={{ whiteSpace: 'pre-wrap' }}>{metadata.description}</p>
         )}
 
         <div className={styles.details}>

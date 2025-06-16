@@ -57,6 +57,9 @@
 }
 
 .stats {
+  position: sticky;
+  top: 80px;
+  z-index: 50;
   margin-bottom: 1.5rem;
   padding: 1rem;
   background-color: #f8f9fa;
@@ -64,6 +67,16 @@
   border-radius: 8px;
   font-size: 0.9rem;
   color: #666;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 768px) {
+  .stats {
+    margin-bottom: 1rem;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
 }
 
 .renderingStatus {

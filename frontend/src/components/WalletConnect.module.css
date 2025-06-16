@@ -6,6 +6,9 @@
 }
 
 .connectButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 12px 24px;
   background-color: #30bca7;
   color: white;
@@ -27,9 +30,11 @@
 
 .connectedInfo {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
+  min-height: 48px;
 }
 
 .address {
@@ -45,10 +50,14 @@
   color: #dc3545;
   font-size: 12px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .disconnectButton {
-  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
   background-color: #dc3545;
   color: white;
   border: none;
@@ -56,6 +65,8 @@
   cursor: pointer;
   font-size: 12px;
   transition: background-color 0.2s;
+  min-width: 32px;
+  min-height: 32px;
 }
 
 .disconnectButton:hover {
