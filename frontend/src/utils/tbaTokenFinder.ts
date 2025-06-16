@@ -55,8 +55,14 @@ export class TBATokenFinder {
       
       // イベントからトークンIDを抽出
       const potentialTokens = events
-        .map(event => event.args?.tokenId?.toString())
-        .filter(Boolean);
+        .map(event => {
+          // EventLogかどうかをチェックしてargsにアクセス
+          if ('args' in event && event.args) {
+            return event.args.tokenId?.toString();
+          }
+          return null;
+        })
+        .filter(Boolean) as string[];
       
       // 重複を除去
       const uniqueTokens = [...new Set(potentialTokens)];
@@ -121,19 +127,50 @@ export class TBATokenFinder {
       const erc721Abi = [
         "function totalSupply() view returns (uint256)",
         "function ownerOf(uint256 tokenId) view returns (address)",
-        "function tokenByIndex(uint256 index) view returns (uint256)"
+        "function tokenByIndex(uint256 index) view returns (uint256)",
+        "function balanceOf(address owner) view returns (uint256)",
+        "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)"
       ];
 
       const contract = new ethers.Contract(contractAddress, erc721Abi, this.provider);
       const ownedTokens: string[] = [];
 
       try {
-        // 総供給量を取得
+        // Method 1: tokenOfOwnerByIndex を最優先で試す（最も効率的）
+        try {
+          console.log(`🚀 Trying tokenOfOwnerByIndex method (most efficient)...`);
+          const balanceBigInt = await (contract as any).balanceOf(ownerAddress);
+          const balance = Number(balanceBigInt);
+          console.log(`💰 Owner balance: ${balance} tokens`);
+          
+          if (balance > 0) {
+            for (let i = 0; i < balance; i++) {
+              try {
+                const tokenIdBigInt = await (contract as any).tokenOfOwnerByIndex(ownerAddress, i);
+                const tokenId = Number(tokenIdBigInt);
+                ownedTokens.push(tokenId.toString());
+                console.log(`✅ tokenOfOwnerByIndex found token: ${tokenId}`);
+              } catch (error) {
+                console.log(`⚠️ tokenOfOwnerByIndex(${i}) failed: ${error}`);
+              }
+            }
+            
+            console.log(`🎯 tokenOfOwnerByIndex found ${ownedTokens.length} tokens:`, ownedTokens);
+            return ownedTokens.sort((a, b) => parseInt(a) - parseInt(b));
+          } else {
+            console.log(`📊 Owner has 0 tokens according to balanceOf`);
+            return [];
+          }
+        } catch (error) {
+          console.log(`❌ tokenOfOwnerByIndex not supported: ${error}`);
+          console.log(`🔄 Falling back to alternative methods...`);
+        }
+
+        // Method 2: tokenByIndex でフォールバック
         const totalSupplyBigInt = await (contract as any).totalSupply();
-        const totalSupply = Number(totalSupplyBigInt); // BigIntを数値に変換
+        const totalSupply = Number(totalSupplyBigInt);
         console.log(`📊 Total supply: ${totalSupply}`);
 
-        // まずtokenByIndexを使って実際のトークンIDを取得を試す
         let actualTokenIds: number[] = [];
         try {
           console.log(`🔍 Trying tokenByIndex method...`);
@@ -149,23 +186,21 @@ export class TBATokenFinder {
           }
           console.log(`📋 Found actual token IDs via tokenByIndex:`, actualTokenIds);
         } catch (error) {
-          console.log(`❌ tokenByIndex not supported, using range search`);
+          console.log(`❌ tokenByIndex not supported: ${error}`);
         }
 
-        // tokenByIndexで取得できた場合はそれを使用、できなかった場合は範囲検索
+        // Method 3: 範囲検索でフォールバック
         let tokensToCheck: number[];
         if (actualTokenIds.length > 0) {
           tokensToCheck = actualTokenIds;
           console.log(`✅ Using tokenByIndex results: ${tokensToCheck.length} tokens`);
         } else {
-          // より広範囲のトークンIDをチェック（totalSupplyは発行総数で、IDは連続していない）
-          const maxCheck = Math.max(totalSupply * 2, 100); // totalSupplyの2倍または100まで、より大きい方
+          const maxCheck = Math.max(totalSupply * 2, 100);
           tokensToCheck = Array.from({ length: maxCheck }, (_, i) => i + 1);
           console.log(`🔍 Using range search: 1 to ${maxCheck}`);
         }
 
         const batchSize = 5;
-
         for (let i = 0; i < tokensToCheck.length; i += batchSize) {
           const batch = tokensToCheck.slice(i, i + batchSize);
 
@@ -175,7 +210,6 @@ export class TBATokenFinder {
                 const owner = await (contract as any).ownerOf(tokenId);
                 return { tokenId: tokenId.toString(), owner, success: true };
               } catch (error) {
-                console.log(`❌ Token ${tokenId} error: ${error}`);
                 return { tokenId: tokenId.toString(), owner: null, success: false };
               }
             })
@@ -188,17 +222,12 @@ export class TBATokenFinder {
                 console.log(`🔍 Token ${value.tokenId} owned by: ${value.owner}`);
                 if (value.owner.toLowerCase() === ownerAddress.toLowerCase()) {
                   ownedTokens.push(value.tokenId);
-                  console.log(`✅ Fallback found owned token: ${value.tokenId}`);
+                  console.log(`✅ Range search found owned token: ${value.tokenId}`);
                 }
-              } else if (!value.success) {
-                console.log(`⚠️ Token ${value.tokenId} does not exist or burned`);
               }
-            } else {
-              console.log(`❌ Promise rejected:`, result.reason);
             }
           });
 
-          // レート制限を避けるため少し待機
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       } catch (error) {

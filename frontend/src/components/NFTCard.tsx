@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import type { NFTToken } from "../types";
 import { NftContractService } from "../utils/nftContract";
+import { TbaService } from "../utils/tbaService";
 import { CONTRACT_ADDRESS, OPENSEA_BASE_URL } from "../constants";
 import { useWallet } from "../hooks/useWallet";
 import styles from "./NFTCard.module.css";
@@ -14,6 +15,7 @@ import yachtIcon from "../assets/icons/yacht.svg";
 import sendIcon from "../assets/icons/send.svg";
 import fireIcon from "../assets/icons/fire.svg";
 import copyIcon from "../assets/icons/copy.svg";
+import backpackIcon from "../assets/icons/backpack.svg";
 
 // Option 3: Import raw SVG content (add ?raw to any SVG)
 // import yachtSvg from "../assets/icons/yacht.svg?raw";
@@ -42,6 +44,11 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const [transferring, setTransferring] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [recipientAddress, setRecipientAddress] = useState("");
+  const [tbaInfo, setTbaInfo] = useState<{
+    accountAddress: string;
+    isDeployed: boolean;
+    balance: string;
+  } | null>(null);
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -64,6 +71,25 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
     fetchMetadata();
   }, [token.tokenURI]);
+
+  // TBA情報を取得
+  useEffect(() => {
+    const fetchTBAInfo = async () => {
+      try {
+        const tbaService = new TbaService();
+        const info = await tbaService.getAccountInfo(
+          currentContractAddress,
+          token.tokenId
+        );
+        setTbaInfo(info);
+      } catch (err) {
+        // TBA情報の取得に失敗した場合は表示しない
+        console.debug("TBA info not available for token", token.tokenId);
+      }
+    };
+
+    fetchTBAInfo();
+  }, [token.tokenId, currentContractAddress]);
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -203,6 +229,19 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           ) : (
             <div className={styles.noImage}>No Image</div>
           )}
+
+          {/* TBA Badge - 画像上に重ねて表示 */}
+          {tbaInfo && tbaInfo.isDeployed && (
+            <div className={styles.tbaBadge}>
+              <img
+                src={backpackIcon}
+                alt="TBA Deployed"
+                width="12"
+                height="12"
+                className={styles.tbaBadgeIcon}
+              />
+            </div>
+          )}
         </div>
       </Link>
 
@@ -221,7 +260,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
         </h3>
 
         {metadata?.description && (
-          <p className={styles.description} style={{ whiteSpace: 'pre-wrap' }}>{metadata.description}</p>
+          <p className={styles.description} style={{ whiteSpace: "pre-wrap" }}>
+            {metadata.description}
+          </p>
         )}
 
         <div className={styles.details}>
@@ -245,6 +286,25 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               </button>
             </div>
           </div>
+
+          {/* TBA Address表示 */}
+          {tbaInfo && tbaInfo.isDeployed && (
+            <div className={styles.detail}>
+              <span className={styles.label}>TBA:</span>
+              <div className={styles.ownerContainer}>
+                <span className={styles.tbaAddress}>
+                  {formatAddress(tbaInfo.accountAddress)}
+                </span>
+                <button
+                  onClick={() => copyToClipboard(tbaInfo.accountAddress)}
+                  className={styles.copyButton}
+                  title="Copy TBA address"
+                >
+                  <img src={copyIcon} alt="Copy" width="14" height="14" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className={styles.actions}>
@@ -282,7 +342,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       </div>
 
       {/* Transfer Modal - Rendered at the end of document body */}
-      {showTransferModal && 
+      {showTransferModal &&
         ReactDOM.createPortal(
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalContent}>
@@ -327,8 +387,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             </div>
           </div>,
           document.body
-        )
-      }
+        )}
     </div>
   );
 };
