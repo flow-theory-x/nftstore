@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { CONTRACT_ADDRESS, RPC_URL } from '../constants';
 import type { NFTToken, ContractInfo } from '../types';
 import contractAbi from '../../config/abi.json';
+import { cacheService } from './cache';
 
 export class ContractService {
   private provider: ethers.JsonRpcProvider;
@@ -52,8 +53,15 @@ export class ContractService {
 
   async getTotalSupply(): Promise<number> {
     try {
+      const cached = cacheService.getContractData<number>(this.contractAddress, 'totalSupply');
+      if (cached !== null) {
+        return cached;
+      }
+
       const supply = await (this.contract as any).totalSupply();
-      return Number(supply);
+      const result = Number(supply);
+      cacheService.setContractData(this.contractAddress, 'totalSupply', result);
+      return result;
     } catch (error) {
       console.error('Failed to get total supply:', error);
       throw error;
@@ -62,7 +70,13 @@ export class ContractService {
 
   async getName(): Promise<string> {
     try {
+      const cached = cacheService.getContractData<string>(this.contractAddress, 'name');
+      if (cached !== null) {
+        return cached;
+      }
+
       const name = await (this.contract as any).name();
+      cacheService.setContractData(this.contractAddress, 'name', name);
       return name;
     } catch (error) {
       console.error('Failed to get contract name:', error);
@@ -82,7 +96,17 @@ export class ContractService {
 
   async getTokenURI(tokenId: string): Promise<string> {
     try {
+      const cached = cacheService.getTokenInfo(this.contractAddress, tokenId);
+      if (cached?.tokenURI) {
+        return cached.tokenURI;
+      }
+
       const uri = await (this.contract as any).tokenURI(tokenId);
+      
+      // Update cache with token info
+      const existingInfo = cached || {};
+      cacheService.setTokenInfo(this.contractAddress, tokenId, { ...existingInfo, tokenURI: uri });
+      
       return uri;
     } catch (error) {
       console.error('Failed to get token URI:', error);
@@ -92,7 +116,13 @@ export class ContractService {
 
   async getOwnerOf(tokenId: string): Promise<string> {
     try {
+      const cached = cacheService.getOwnerInfo(this.contractAddress, tokenId);
+      if (cached) {
+        return cached;
+      }
+
       const owner = await (this.contract as any).ownerOf(tokenId);
+      cacheService.setOwnerInfo(this.contractAddress, tokenId, owner);
       return owner;
     } catch (error) {
       console.error('Failed to get owner of token:', error);
@@ -146,6 +176,11 @@ export class ContractService {
 
   async getTokensBatch(startIndex: number, batchSize: number): Promise<{ tokens: NFTToken[], hasMore: boolean }> {
     try {
+      const cached = cacheService.getBatchTokens(this.contractAddress, startIndex, batchSize);
+      if (cached) {
+        return cached;
+      }
+
       const totalSupply = await this.getTotalSupply();
       const tokens: NFTToken[] = [];
       
@@ -165,10 +200,13 @@ export class ContractService {
         });
       }
       
-      return {
+      const result = {
         tokens,
         hasMore: actualEndIndex > 0
       };
+      
+      cacheService.setBatchTokens(this.contractAddress, startIndex, batchSize, result);
+      return result;
     } catch (error) {
       console.error('Failed to get tokens batch:', error);
       throw error;
@@ -261,11 +299,18 @@ export class ContractService {
 
   async fetchMetadata(tokenURI: string): Promise<any> {
     try {
+      const cached = cacheService.getTokenMetadata(tokenURI);
+      if (cached) {
+        return cached;
+      }
+
       const response = await fetch(tokenURI);
       if (!response.ok) {
         throw new Error('Failed to fetch metadata');
       }
-      return await response.json();
+      const metadata = await response.json();
+      cacheService.setTokenMetadata(tokenURI, metadata);
+      return metadata;
     } catch (error) {
       console.error('Failed to fetch metadata:', error);
       return null;
