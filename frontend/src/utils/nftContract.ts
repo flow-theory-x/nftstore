@@ -230,7 +230,8 @@ export class NftContractService {
   async getTokensBatchWithProgress(
     startIndex: number,
     batchSize: number,
-    onProgress?: (message: string, tokenId?: string) => void
+    onProgress?: (message: string, tokenId?: string) => void,
+    onTokenReady?: (token: NFTToken) => void
   ): Promise<{ tokens: NFTToken[]; hasMore: boolean }> {
     try {
       const cached = cacheService.getBatchTokens(
@@ -245,6 +246,10 @@ export class NftContractService {
           batchSize,
           cached.tokens.length + " tokens"
         );
+        // Call onTokenReady for each cached token
+        if (onTokenReady) {
+          cached.tokens.forEach(token => onTokenReady(token));
+        }
         return cached;
       }
 
@@ -309,12 +314,16 @@ export class NftContractService {
         onProgress?.('Getting metadata', tokenId);
         const tokenURI = await this.getTokenURI(tokenId);
 
-        tokens.push({
+        const token: NFTToken = {
           tokenId,
           owner,
           tokenURI,
           contractAddress: this.contractAddress,
-        });
+        };
+        tokens.push(token);
+        
+        // Call the callback immediately when token is ready
+        onTokenReady?.(token);
       }
 
       const result = {

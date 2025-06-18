@@ -39,27 +39,30 @@ export const TokensPage: React.FC = () => {
     try {
       const contractService = new NftContractService(contractAddress);
 
-      const { tokens: newTokens, hasMore: moreTokens } =
+      // Track how many tokens were added in this batch
+      let tokensAddedCount = 0;
+
+      const { hasMore: moreTokens } =
         await contractService.getTokensBatchWithProgress(
           startIndex, 
           3, 
-          setCurrentTokenInfo
+          setCurrentTokenInfo,
+          (token) => {
+            // Add each token immediately as it's ready
+            setTokens((prev) => {
+              // Check for duplicates
+              if (prev.some(existingToken => existingToken.tokenId === token.tokenId)) {
+                return prev;
+              }
+              tokensAddedCount++;
+              return [...prev, token];
+            });
+          }
         );
 
-      // 重複チェックを追加
-      setTokens((prev) => {
-        const uniqueNewTokens = newTokens.filter(
-          (newToken) =>
-            !prev.some(
-              (existingToken) => existingToken.tokenId === newToken.tokenId
-            )
-        );
-        return [...prev, ...uniqueNewTokens];
-      });
       setHasMore(moreTokens);
-
       setCurrentTokenInfo("");
-      return newTokens.length;
+      return tokensAddedCount;
     } catch (err: any) {
       console.error("Failed to fetch tokens batch:", err);
       setCurrentTokenInfo("");
@@ -120,14 +123,23 @@ export const TokensPage: React.FC = () => {
         setLoadingMessage("Loading first batch of tokens...");
 
         const contractService = new NftContractService(contractAddress);
-        const { tokens: newTokens, hasMore: moreTokens } =
+        const { hasMore: moreTokens } =
           await contractService.getTokensBatchWithProgress(
             0, 
             3, 
-            setCurrentTokenInfo
+            setCurrentTokenInfo,
+            (token) => {
+              // Add each token immediately as it's ready
+              setTokens((prev) => {
+                // Check for duplicates
+                if (prev.some(existingToken => existingToken.tokenId === token.tokenId)) {
+                  return prev;
+                }
+                return [...prev, token];
+              });
+            }
           );
 
-        setTokens(newTokens);
         setHasMore(moreTokens);
         setInitialized(true);
       } catch (err: any) {
