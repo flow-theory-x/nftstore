@@ -2,6 +2,7 @@ export interface NFTToken {
   tokenId: string;
   owner: string;
   tokenURI: string;
+  contractAddress: string;
   metadata?: {
     name?: string;
     description?: string;
@@ -23,12 +24,33 @@ export interface ContractInfo {
 
 export interface MemberInfo {
   address: string;
-  Nick?: string;
-  Name?: string;
+  // API response fields (uppercase keys)
+  DeleteFlag?: boolean;
+  DiscordId?: string;
+  Icon?: string; // avatar URL
+  Roles?: string[];
+  Expired?: string;
+  Eoa?: string;
+  Nick?: string; // nickname
+  PartitionName?: string;
+  Updated?: string;
+  Name?: string; // name
   Username?: string;
+  
+  // Legacy fields for backward compatibility
+  name?: string;
+  email?: string;
+  role?: string;
+  joinedAt?: string;
+  status?: string;
+  deleted?: boolean;
+  discord_id?: string;
+  avatar_url?: string;
   nickname?: string;
   username?: string;
-  Icon?: string;
-  avatar_url?: string;
-  [key: string]: any;
+  roles?: any[];
+  expires_at?: string;
+  updated_at?: string;
+  
+  [key: string]: any; // 追加のプロパティに対応
 }

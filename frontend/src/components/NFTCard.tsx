@@ -4,7 +4,9 @@ import { Link, useParams } from "react-router-dom";
 import type { NFTToken } from "../types";
 import { NftContractService } from "../utils/nftContract";
 import { TbaService } from "../utils/tbaService";
-import { CONTRACT_ADDRESS, OPENSEA_BASE_URL, TBA_TARGET_SBT_CA_ADDRESSES } from "../constants";
+import { memberService } from "../utils/memberService";
+import { CONTRACT_ADDRESS, OPENSEA_BASE_URL, TBA_TARGET_SBT_CA_ADDRESSES, TBA_TARGET_NFT_CA_ADDRESSES } from "../constants";
+import type { MemberInfo } from "../types";
 import { useWallet } from "../hooks/useWallet";
 import styles from "./NFTCard.module.css";
 // Option 1: Import as React components (current approach)
@@ -16,6 +18,7 @@ import sendIcon from "../assets/icons/send.svg";
 import fireIcon from "../assets/icons/fire.svg";
 import copyIcon from "../assets/icons/copy.svg";
 import backpackIcon from "../assets/icons/backpack.svg";
+import { Spinner } from "./Spinner";
 
 // Option 3: Import raw SVG content (add ?raw to any SVG)
 // import yachtSvg from "../assets/icons/yacht.svg?raw";
@@ -23,6 +26,7 @@ import backpackIcon from "../assets/icons/backpack.svg";
 interface NFTCardProps {
   token: NFTToken;
   contractAddress?: string;
+  showOwner?: boolean;
   onBurn?: () => void;
   onTransfer?: () => void;
 }
@@ -49,6 +53,8 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     isDeployed: boolean;
     balance: string;
   } | null>(null);
+  const [ownerMemberInfo, setOwnerMemberInfo] = useState<MemberInfo | null>(null);
+  const [isOwnerTBA, setIsOwnerTBA] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -90,6 +96,50 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
     fetchTBAInfo();
   }, [token.tokenId, currentContractAddress]);
+
+  // Owner member info を取得
+  useEffect(() => {
+    const fetchOwnerMemberInfo = async () => {
+      if (token.owner) {
+        console.log(`🔍 NFTCard: Checking owner ${token.owner} for token ${token.tokenId}`);
+        // TBAアドレスかチェック
+        const tbaService = new TbaService();
+        let isTBA = false;
+        
+        try {
+          // まず既知のコントラクトから生成されたTBAアドレスかどうかを確認
+          const sourceToken = await tbaService.findTBASourceToken(token.owner);
+          if (sourceToken) {
+            console.log(`🎯 Owner ${token.owner} is TBA for ${sourceToken.contractAddress}#${sourceToken.tokenId}`);
+            isTBA = true;
+          } else {
+            // フォールバック: コントラクトメソッドで確認
+            isTBA = await tbaService.isTBAAccount(token.owner);
+          }
+          
+          // デバッグ用: グローバルに公開
+          if (typeof window !== 'undefined') {
+            (window as any).debugTBA = (address: string) => tbaService.debugTBACheck(address);
+          }
+        } catch (err) {
+          // エラー時はfalseとして続行
+          console.debug('TBA check failed:', err);
+        }
+        
+        console.log(`👁️ NFTCard: Owner ${token.owner} isTBA=${isTBA}`);
+        setIsOwnerTBA(isTBA);
+        
+        if (!isTBA) {
+          const memberInfo = await memberService.getMemberInfo(token.owner);
+          setOwnerMemberInfo(memberInfo);
+        } else {
+          setOwnerMemberInfo(null);
+        }
+      }
+    };
+
+    fetchOwnerMemberInfo();
+  }, [token.owner]);
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -213,9 +263,20 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       >
         <div className={styles.imageContainer}>
           {loading ? (
-            <div className={styles.loading}>Loading...</div>
+            <Spinner size="small" />
           ) : error ? (
-            <div className={styles.error}>{error}</div>
+            <div className={styles.error}>
+              <p>{error}</p>
+              <div className={styles.errorActions}>
+                <button
+                  onClick={() => copyToClipboard(error)}
+                  className={styles.copyErrorButton}
+                  title="Copy error message"
+                >
+                  📋 Copy Error
+                </button>
+              </div>
+            </div>
           ) : metadata?.image ? (
             <img
               src={metadata.image}
@@ -274,6 +335,26 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           <div className={styles.detail}>
             <span className={styles.label}>Owner:</span>
             <div className={styles.ownerContainer}>
+              {isOwnerTBA ? (
+                <img 
+                  src={backpackIcon} 
+                  alt="TBA Owner"
+                  width="20"
+                  height="20"
+                  style={{ marginRight: "6px" }}
+                />
+              ) : ownerMemberInfo && (ownerMemberInfo.Icon || ownerMemberInfo.avatar_url) && (
+                <img 
+                  src={ownerMemberInfo.Icon || ownerMemberInfo.avatar_url} 
+                  alt="Owner"
+                  width="20"
+                  height="20"
+                  style={{ borderRadius: "50%", marginRight: "6px" }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              )}
               <Link to={`/own/${currentContractAddress}/${token.owner}`}>
                 {formatAddress(token.owner)}
               </Link>
@@ -292,9 +373,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             <div className={styles.detail}>
               <span className={styles.label}>TBA:</span>
               <div className={styles.ownerContainer}>
-                <span className={styles.tbaAddress}>
+                <Link to={`/own/${tbaInfo.accountAddress}`} className={styles.tbaAddress}>
                   {formatAddress(tbaInfo.accountAddress)}
-                </span>
+                </Link>
                 <button
                   onClick={() => copyToClipboard(tbaInfo.accountAddress)}
                   className={styles.copyButton}
