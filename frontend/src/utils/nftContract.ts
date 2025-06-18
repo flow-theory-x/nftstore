@@ -156,12 +156,117 @@ export class NftContractService {
           tokenId,
           owner,
           tokenURI,
+          contractAddress: this.contractAddress,
         });
       }
 
       return tokens;
     } catch (error) {
       console.error("Failed to get all tokens:", error);
+      throw error;
+    }
+  }
+
+  async getTokensBatchWithProgress(
+    startIndex: number,
+    batchSize: number,
+    onProgress?: (message: string, tokenId?: string) => void
+  ): Promise<{ tokens: NFTToken[]; hasMore: boolean }> {
+    try {
+      const cached = cacheService.getBatchTokens(
+        this.contractAddress,
+        startIndex,
+        batchSize
+      );
+      if (cached) {
+        console.log(
+          "📋 Cache HIT: getTokensBatch",
+          startIndex,
+          batchSize,
+          cached.tokens.length + " tokens"
+        );
+        return cached;
+      }
+
+      console.log(
+        "🔗 Blockchain BATCH CALL: getTokensBatch",
+        startIndex,
+        batchSize
+      );
+      
+      // 全トークンIDリストをキャッシュから取得または作成
+      let allTokenIds = cacheService.getContractData<string[]>(this.contractAddress, 'allTokenIds');
+      if (!allTokenIds) {
+        onProgress?.('Fetching all token IDs...');
+        console.log('🔗 Fetching all token IDs for sorting...');
+        const totalSupply = await this.getTotalSupply();
+        console.log('📊 Total supply:', totalSupply);
+        
+        allTokenIds = [];
+        for (let i = 0; i < totalSupply; i++) {
+          onProgress?.(`Getting token ID ${i + 1}/${totalSupply}`);
+          const tokenId = await this.getTokenByIndex(i);
+          allTokenIds.push(tokenId);
+        }
+        
+        onProgress?.('Sorting tokens...');
+        // トークンIDで降順ソート（最新が最初）
+        allTokenIds.sort((a, b) => parseInt(b) - parseInt(a));
+        console.log('🔢 Sorted token IDs:', allTokenIds);
+        
+        // 1分間キャッシュ（新しいミントを考慮して短めに設定）
+        cacheService.setContractData(this.contractAddress, 'allTokenIds', allTokenIds);
+      } else {
+        console.log('📋 Using cached token IDs:', allTokenIds);
+      }
+      
+      // 指定されたバッチ範囲のトークンのみ詳細取得
+      const batchTokenIds = allTokenIds.slice(startIndex, startIndex + batchSize);
+      console.log('📦 Batch token IDs:', batchTokenIds);
+      
+      const tokens: NFTToken[] = [];
+      for (let i = 0; i < batchTokenIds.length; i++) {
+        const tokenId = batchTokenIds[i];
+        onProgress?.('Getting owner info', tokenId);
+        const owner = await this.getOwnerOf(tokenId);
+        
+        // BURN済み（dead addressが所有）のトークンはスキップ
+        if (owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
+          console.log(`🔥 Skipping burned token: ${tokenId} (owner: ${owner})`);
+          continue;
+        }
+        
+        onProgress?.('Getting metadata', tokenId);
+        const tokenURI = await this.getTokenURI(tokenId);
+
+        tokens.push({
+          tokenId,
+          owner,
+          tokenURI,
+          contractAddress: this.contractAddress,
+        });
+      }
+
+      const result = {
+        tokens,
+        hasMore: startIndex + batchSize < allTokenIds.length,
+      };
+
+      cacheService.setBatchTokens(
+        this.contractAddress,
+        startIndex,
+        batchSize,
+        result
+      );
+      console.log(
+        "💾 Cache SET: getTokensBatch",
+        startIndex,
+        batchSize,
+        tokens.length + " tokens"
+      );
+      return result;
+    } catch (error) {
+      console.error("Failed to get tokens batch:", error);
       throw error;
     }
   }
@@ -235,6 +340,7 @@ export class NftContractService {
           tokenId,
           owner,
           tokenURI,
+          contractAddress: this.contractAddress,
         });
       }
 
@@ -262,6 +368,44 @@ export class NftContractService {
     }
   }
 
+  async getTokensByOwnerWithProgress(
+    owner: string,
+    onProgress?: (message: string, tokenId?: string) => void
+  ): Promise<NFTToken[]> {
+    try {
+      // BURN済み（dead address）のトークンは検索しない
+      if (owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
+        console.log(`🔥 Skipping tokens for burned address: ${owner}`);
+        return [];
+      }
+      
+      onProgress?.('Getting balance...');
+      const balance = await this.getBalanceOf(owner);
+      const tokens: NFTToken[] = [];
+
+      for (let i = 0; i < balance; i++) {
+        onProgress?.(`Getting token ${i + 1}/${balance}`);
+        const tokenId = await this.getTokenOfOwnerByIndex(owner, i);
+        
+        onProgress?.('Getting metadata', tokenId);
+        const tokenURI = await this.getTokenURI(tokenId);
+
+        tokens.push({
+          tokenId,
+          owner,
+          tokenURI,
+          contractAddress: this.contractAddress,
+        });
+      }
+
+      // tokenIdの降順でソート（新しいものが最初に表示される）
+      return tokens.sort((a, b) => parseInt(b.tokenId) - parseInt(a.tokenId));
+    } catch (error) {
+      console.error("Failed to get tokens by owner:", error);
+      throw error;
+    }
+  }
+
   async getTokensByOwner(owner: string): Promise<NFTToken[]> {
     try {
       // BURN済み（dead address）のトークンは検索しない
@@ -281,6 +425,7 @@ export class NftContractService {
           tokenId,
           owner,
           tokenURI,
+          contractAddress: this.contractAddress,
         });
       }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { TBA_TARGET_NFT_CA_ADDRESSES, TBA_TARGET_SBT_CA_ADDRESSES } from "../constants";
 import { NftContractService } from "../utils/nftContract";
+import { Spinner } from "../components/Spinner";
 import styles from "./CollectionPage.module.css";
 
 export const CollectionPage: React.FC = () => {
@@ -133,7 +134,7 @@ export const CollectionPage: React.FC = () => {
         <div className={styles.placeholder}>
           <h3>Collection NFT Features</h3>
           {loadingNft ? (
-            <div className={styles.loading}>Loading NFT collections...</div>
+            <Spinner size="medium" text="Loading NFT collections..." />
           ) : nftCollectionFeatures.length > 0 ? (
             <ul>
               {nftCollectionFeatures.map((feature) => (
@@ -161,7 +162,7 @@ export const CollectionPage: React.FC = () => {
         <div className={styles.placeholder}>
           <h3>Collection SBT Features</h3>
           {loadingSbt ? (
-            <div className={styles.loading}>Loading SBT collections...</div>
+            <Spinner size="medium" text="Loading SBT collections..." />
           ) : sbtCollectionFeatures.length > 0 ? (
             <ul>
               {sbtCollectionFeatures.map((feature) => (

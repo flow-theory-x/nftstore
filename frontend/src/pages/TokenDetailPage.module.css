@@ -4,8 +4,20 @@
   padding: 20px;
 }
 
+@media (max-width: 768px) {
+  .container {
+    padding: 3px;
+  }
+}
+
 .header {
   margin-bottom: 30px;
+}
+
+@media (max-width: 768px) {
+  .header {
+    margin-bottom: 3px;
+  }
 }
 
 .backButton {
@@ -22,6 +34,14 @@
   margin-bottom: 20px;
 }
 
+@media (max-width: 768px) {
+  .backButton {
+    padding: 6px 12px;
+    font-size: 13px;
+    margin-bottom: 3px;
+  }
+}
+
 .backButton:hover {
   background-color: #e9ecef;
   text-decoration: none;
@@ -36,6 +56,12 @@
   word-break: break-word;
 }
 
+@media (max-width: 768px) {
+  .title {
+    font-size: 24px;
+  }
+}
+
 .content {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -46,7 +72,7 @@
 @media (max-width: 768px) {
   .content {
     grid-template-columns: 1fr;
-    gap: 30px;
+    gap: 3px;
   }
 }
 
@@ -318,6 +344,12 @@
   gap: 30px;
 }
 
+@media (max-width: 768px) {
+  .detailsSection {
+    gap: 3px;
+  }
+}
+
 .description h3,
 .properties h3,
 .attributes h3 {
@@ -325,6 +357,15 @@
   font-weight: 600;
   color: #333;
   margin: 0 0 15px 0;
+}
+
+@media (max-width: 768px) {
+  .description h3,
+  .properties h3,
+  .attributes h3 {
+    font-size: 18px;
+    margin: 0 0 3px 0;
+  }
 }
 
 .description p {
@@ -340,6 +381,12 @@
   gap: 15px;
 }
 
+@media (max-width: 768px) {
+  .propertyGrid {
+    gap: 3px;
+  }
+}
+
 .property {
   display: flex;
   justify-content: space-between;
@@ -347,6 +394,15 @@
   padding: 15px;
   background-color: #f8f9fa;
   border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+  .property {
+    padding: 3px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
 }
 
 .propertyLabel {
@@ -406,16 +462,28 @@
 }
 
 .attributeGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 15px;
+}
+
+@media (max-width: 768px) {
+  .attributeGrid {
+    gap: 3px;
+  }
 }
 
 .attribute {
   padding: 15px;
   background-color: #f8f9fa;
   border-radius: 8px;
-  text-align: center;
+  text-align: left;
+}
+
+@media (max-width: 768px) {
+  .attribute {
+    padding: 3px;
+  }
 }
 
 .attributeType {
@@ -425,6 +493,12 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 5px;
+}
+
+@media (max-width: 768px) {
+  .attributeType {
+    margin-bottom: 3px;
+  }
 }
 
 .attributeValue {
@@ -631,6 +705,18 @@
   margin-left: 8px;
 }
 
+.tbaLink {
+  color: #30bca7;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.tbaLink:hover {
+  color: #089781;
+  text-decoration: underline;
+}
+
 .loading,
 .error {
   display: flex;
@@ -648,11 +734,39 @@
   flex-direction: column;
   gap: 20px;
   color: #dc3545;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .error p {
   margin: 0;
   text-align: center;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.errorActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.copyErrorButton {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+  text-decoration: none;
+}
+
+.copyErrorButton:hover {
+  background-color: #d32f2f;
 }
 
 /* Modal styles */

@@ -99,6 +99,9 @@
 }
 
 .stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1.5rem;
   padding: 1rem;
   background-color: #f8f9fa;
@@ -108,9 +111,146 @@
   color: #666;
 }
 
+.count {
+  color: #333;
+  font-weight: 500;
+}
+
+.refreshButton {
+  padding: 0.5rem 1rem;
+  background-color: #30bca7;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+}
+
+.refreshButton:hover {
+  background-color: #089781;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
+}
+
+.contractSections {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.contractSection {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  background-color: #fafafa;
+}
+
+.contractHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.contractTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+.contractTitleLink {
+  color: #30bca7;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.contractTitleLink:hover {
+  color: #089781;
+  text-decoration: underline;
+}
+
+.contractAddressContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.contractAddress {
+  font-size: 0.875rem;
+  color: #666;
+  font-family: monospace;
+  background-color: #e3f2fd;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.copyButton {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.copyButton:hover {
+  background-color: #f5f5f5;
+  border-color: #999;
+}
+
+.tokenCount {
+  font-size: 0.875rem;
+  color: #30bca7;
+  font-weight: 500;
+  background-color: #e8f5f2;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.contractError {
+  color: #d32f2f;
+  padding: 1rem;
+  background-color: #ffebee;
+  border-radius: 4px;
+  border: 1px solid #ffcdd2;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.contractError p {
+  margin: 0 0 0.5rem 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.copyErrorButton {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+}
+
+.copyErrorButton:hover {
+  background-color: #d32f2f;
+}
+
+.contractEmpty {
+  color: #666;
+  padding: 1rem;
+  text-align: center;
+  font-style: italic;
 }

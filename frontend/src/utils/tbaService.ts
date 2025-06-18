@@ -5,6 +5,8 @@ import {
   TBA_ACCOUNT_IMPLEMENTATION,
   CHAIN_ID,
   DEAD_ADDRESS,
+  TBA_TARGET_NFT_CA_ADDRESSES,
+  TBA_TARGET_SBT_CA_ADDRESSES,
 } from "../constants";
 import tbaRegistryAbi from "../../config/tba_registry_abi.json";
 import tbaAccountAbi from "../../config/tba_account_abi.json";
@@ -368,6 +370,141 @@ export class TbaService {
     } catch (error) {
       console.error("Failed to get account owner:", error);
       throw error;
+    }
+  }
+
+  // アドレスがTBAアカウントかどうかを判定
+  async isTBAAccount(address: string): Promise<boolean> {
+    try {
+      const cached = cacheService.getContractData<boolean>(
+        this.registryAddress,
+        `is_tba_${address}`
+      );
+      if (cached !== null) {
+        console.log("📋 Cache HIT: isTBAAccount", address, cached);
+        return cached;
+      }
+
+      console.log("🔗 Blockchain CALL: isTBAAccount", address);
+      
+      // TBAアカウントであることを確認するために、owner()メソッドの呼び出しを試行
+      try {
+        const accountContract = this.getAccountContract(address);
+        await (accountContract as any).owner();
+        
+        // owner()メソッドが成功した場合、これはTBAアカウント
+        cacheService.setContractData(
+          this.registryAddress,
+          `is_tba_${address}`,
+          true
+        );
+        console.log("💾 Cache SET: isTBAAccount", address, true);
+        return true;
+      } catch (error) {
+        // owner()メソッドが失敗した場合、TBAアカウントではない
+        cacheService.setContractData(
+          this.registryAddress,
+          `is_tba_${address}`,
+          false
+        );
+        console.log("💾 Cache SET: isTBAAccount", address, false);
+        return false;
+      }
+    } catch (error) {
+      console.error("Failed to check if address is TBA:", error);
+      return false;
+    }
+  }
+
+  // TBAアカウントアドレスを取得（デフォルトパラメータ使用）
+  async getAccountAddress(
+    tokenContract: string,
+    tokenId: string,
+    implementation: string = TBA_ACCOUNT_IMPLEMENTATION,
+    salt: string = "1",
+    chainId: number = CHAIN_ID
+  ): Promise<string> {
+    return this.computeAccountAddress(
+      implementation,
+      salt,
+      chainId,
+      tokenContract,
+      tokenId
+    );
+  }
+
+  // 指定されたアドレスがどのコントラクトのTBAアカウントかを特定
+  async findTBASourceToken(address: string): Promise<{contractAddress: string, tokenId: string} | null> {
+    try {
+      // 全てのターゲットコントラクトをチェック
+      const allTargetContracts = [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
+      
+      for (const contractAddress of allTargetContracts) {
+        // 各コントラクトのトークンをチェック（扩張範囲）
+        for (let tokenId = 1; tokenId <= 1000; tokenId++) {
+          try {
+            const tbaAddress = await this.getAccountAddress(contractAddress, tokenId.toString());
+            if (tbaAddress.toLowerCase() === address.toLowerCase()) {
+              console.log(`🎯 Found TBA source: ${contractAddress}#${tokenId} -> ${address}`);
+              return { contractAddress, tokenId: tokenId.toString() };
+            }
+          } catch (err) {
+            // エラーは無視して続行
+          }
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Failed to find TBA source token:", error);
+      return null;
+    }
+  }
+
+  // デバッグ用: 特定のアドレスのTBAチェックを詳細に調査
+  async debugTBACheck(address: string): Promise<void> {
+    console.log(`🔍 Starting TBA debug check for: ${address}`);
+    
+    // 1. コントラクトコードチェック
+    const code = await this.provider.getCode(address);
+    console.log(`📄 Contract code length: ${code.length} (${code === '0x' ? 'NO CODE' : 'HAS CODE'})`);
+    
+    if (code !== '0x') {
+      // 2. TBAメソッドチェック
+      try {
+        const accountContract = this.getAccountContract(address);
+        const owner = await (accountContract as any).owner();
+        const token = await (accountContract as any).token();
+        console.log(`✅ TBA methods work - owner: ${owner}, token: ${token}`);
+      } catch (error) {
+        console.log(`❌ TBA methods failed:`, error);
+      }
+    }
+    
+    // 3. 既知コントラクトからの生成チェック
+    const sourceToken = await this.findTBASourceToken(address);
+    if (sourceToken) {
+      console.log(`🎯 Found source: ${sourceToken.contractAddress}#${sourceToken.tokenId}`);
+    } else {
+      console.log(`❌ No source token found in known contracts`);
+    }
+    
+    // 4. 特定のコントラクトで直接テスト
+    const allTargetContracts = [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
+    for (const contractAddress of allTargetContracts) {
+      console.log(`🔍 Testing contract: ${contractAddress}`);
+      for (let tokenId = 1; tokenId <= 10; tokenId++) {
+        try {
+          const computedTBA = await this.getAccountAddress(contractAddress, tokenId.toString());
+          console.log(`  Token ${tokenId}: ${computedTBA}`);
+          if (computedTBA.toLowerCase() === address.toLowerCase()) {
+            console.log(`  🎯 MATCH FOUND! ${contractAddress}#${tokenId}`);
+            return;
+          }
+        } catch (err) {
+          console.log(`  Token ${tokenId}: ERROR - ${err}`);
+        }
+      }
     }
   }
 }

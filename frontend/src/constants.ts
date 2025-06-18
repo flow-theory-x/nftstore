@@ -20,6 +20,9 @@ export const OPENSEA_BASE_URL = `${
   import.meta.env.VITE_OPENSEA_BASE_URL || "https://opensea.io/assets"
 }/${OPENSEA_NETWORK}`;
 
+// Site information
+export const SITE_TITLE = import.meta.env.VITE_SITE_TITLE || "NFT Mint Store";
+
 // Copyright information
 export const COPYRIGHT_YEAR = import.meta.env.VITE_COPYRIGHT_YEAR || "2025";
 export const COPYRIGHT_OWNER = import.meta.env.VITE_COPYRIGHT_OWNER || "FLOW";
