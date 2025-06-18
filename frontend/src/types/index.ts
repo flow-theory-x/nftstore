@@ -20,3 +20,15 @@ export interface ContractInfo {
   feeRate: string;
   creatorOnly: boolean;
 }
+
+export interface MemberInfo {
+  address: string;
+  Nick?: string;
+  Name?: string;
+  Username?: string;
+  nickname?: string;
+  username?: string;
+  Icon?: string;
+  avatar_url?: string;
+  [key: string]: any;
+}

@@ -1,0 +1,249 @@
+.card {
+  background-color: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  max-width: 100%;
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.profileSection {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.avatarContainer {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid #e9ecef;
+  object-fit: cover;
+}
+
+.nameSection {
+  flex: 1;
+}
+
+.displayName {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 0.25rem 0;
+}
+
+.username {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
+  font-weight: 400;
+}
+
+.status {
+  flex-shrink: 0;
+}
+
+.statusBadge {
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.statusActive {
+  background-color: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+
+.statusInactive {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.infoGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.field {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  gap: 1rem;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  flex-shrink: 0;
+  min-width: 120px;
+}
+
+.value {
+  color: #333;
+  font-size: 14px;
+  word-break: break-word;
+  text-align: right;
+  flex: 1;
+}
+
+.rolesContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-end;
+}
+
+.roleBadge {
+  padding: 0.2rem 0.5rem;
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border: 1px solid #bbdefb;
+}
+
+.moreRoles {
+  font-size: 0.7rem;
+  color: #666;
+  font-style: italic;
+}
+
+.addressSection {
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.addressLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  flex-shrink: 0;
+  min-width: 120px;
+}
+
+.addressValue {
+  font-family: monospace;
+  font-size: 14px;
+  color: #333;
+  word-break: break-all;
+  text-align: right;
+  flex: 1;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+  color: #666;
+}
+
+.notFound {
+  text-align: center;
+  padding: 3rem;
+  color: #666;
+  font-style: italic;
+}
+
+.notFound p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* アバターがない場合のフォールバック */
+.nameSection:only-child {
+  margin-left: 0;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+  .card {
+    padding: 1rem;
+  }
+  
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .profileSection {
+    width: 100%;
+  }
+  
+  .status {
+    align-self: flex-start;
+  }
+  
+  .field,
+  .addressSection {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .label,
+  .addressLabel {
+    min-width: auto;
+  }
+  
+  .value,
+  .addressValue {
+    text-align: left;
+  }
+  
+  .rolesContainer {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .avatar {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .displayName {
+    font-size: 1.3rem;
+  }
+}

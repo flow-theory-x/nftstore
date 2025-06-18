@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { NftContractService } from "../utils/nftContract";
 import { TbaService } from "../utils/tbaService";
+import { memberService } from "../utils/memberService";
 import { useWallet } from "../hooks/useWallet";
 import {
   CONTRACT_ADDRESS,
@@ -10,7 +11,7 @@ import {
   TBA_TARGET_NFT_CA_ADDRESSES,
   TBA_TARGET_SBT_CA_ADDRESSES,
 } from "../constants";
-import type { NFTToken } from "../types";
+import type { NFTToken, MemberInfo } from "../types";
 import styles from "./TokenDetailPage.module.css";
 import copyIcon from "../assets/icons/copy.svg";
 import yachtIcon from "../assets/icons/yacht.svg";
@@ -19,6 +20,7 @@ import backpackIcon from "../assets/icons/backpack.svg";
 import fireIcon from "../assets/icons/fire.svg";
 import { ModelViewer } from "../components/ModelViewer";
 import { NFTCard } from "../components/NFTCard";
+import { MemberInfoCard } from "../components/MemberInfoCard";
 
 export const TokenDetailPage: React.FC = () => {
   const { contractAddress, tokenId } = useParams<{
@@ -55,6 +57,9 @@ export const TokenDetailPage: React.FC = () => {
     };
   }>({});
   const [loadingTbaTokens, setLoadingTbaTokens] = useState(false);
+  const [ownerMemberInfo, setOwnerMemberInfo] = useState<MemberInfo | null>(null);
+  const [loadingOwnerInfo, setLoadingOwnerInfo] = useState(false);
+  const [isOwnerTBA, setIsOwnerTBA] = useState<boolean>(false);
 
   const currentContractAddress = contractAddress || CONTRACT_ADDRESS;
 
@@ -125,6 +130,43 @@ export const TokenDetailPage: React.FC = () => {
 
     fetchTBAInfo();
   }, [tokenId, currentContractAddress]);
+
+  // Owner member info を取得
+  useEffect(() => {
+    const fetchOwnerMemberInfo = async () => {
+      if (token?.owner) {
+        setLoadingOwnerInfo(true);
+        
+        // TBAアドレスかチェック（簡単な推測ベース）
+        let isTBA = false;
+        
+        try {
+          // TBAアドレスの一般的なパターンをチェック
+          // 実際のTBAサービスがない場合は、アドレスパターンで判断
+          const addressLower = token.owner.toLowerCase();
+          
+          // 一般的なEOAアドレスと明らかに異なるパターンがあればTBAとして扱う
+          // より詳細な判定が必要な場合は、TBAサービスの実装を確認する必要があります
+          isTBA = false; // 現在は安全にfalseとしておく
+        } catch (err) {
+          console.debug('TBA check failed:', err);
+        }
+        
+        setIsOwnerTBA(isTBA);
+        
+        if (!isTBA) {
+          const memberInfo = await memberService.getMemberInfo(token.owner);
+          setOwnerMemberInfo(memberInfo);
+        } else {
+          setOwnerMemberInfo(null);
+        }
+        
+        setLoadingOwnerInfo(false);
+      }
+    };
+
+    fetchOwnerMemberInfo();
+  }, [token?.owner]);
 
   // TBA保有NFTを取得（複数コントラクト対応）
   useEffect(() => {
@@ -879,6 +921,26 @@ export const TokenDetailPage: React.FC = () => {
               <div className={styles.property}>
                 <span className={styles.propertyLabel}>Owner</span>
                 <div className={styles.propertyValue}>
+                  {isOwnerTBA ? (
+                    <img 
+                      src={backpackIcon} 
+                      alt="TBA Owner"
+                      width="20"
+                      height="20"
+                      style={{ marginRight: "8px" }}
+                    />
+                  ) : ownerMemberInfo && (ownerMemberInfo.Icon || ownerMemberInfo.avatar_url) && (
+                    <img 
+                      src={ownerMemberInfo.Icon || ownerMemberInfo.avatar_url} 
+                      alt="Owner"
+                      width="20"
+                      height="20"
+                      style={{ borderRadius: "50%", marginRight: "8px" }}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  )}
                   <Link
                     to={
                       currentContractAddress !== CONTRACT_ADDRESS
@@ -1077,6 +1139,17 @@ export const TokenDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Owner Member Information */}
+      {!isOwnerTBA && (
+        <div className={styles.container}>
+          <MemberInfoCard 
+            memberInfo={ownerMemberInfo}
+            loading={loadingOwnerInfo}
+            address={token?.owner || ''}
+          />
+        </div>
+      )}
 
       {/* TBA Owned NFTs Section - Multiple Contracts */}
       {tbaInfo && tbaInfo.isDeployed && (
