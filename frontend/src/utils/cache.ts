@@ -187,6 +187,20 @@ export class CacheService {
     });
   }
 
+  // Clear balance cache for specific owner on specific contract
+  clearBalanceCache(contractAddress: string, owner: string): void {
+    const balanceKey = `balance_${owner.toLowerCase()}`;
+    const fullKey = `contract_${contractAddress}_${balanceKey}`;
+    
+    // Clear from memory cache (not used for balanceOf, but clear anyway)
+    this.memoryCache.remove(fullKey);
+    
+    // Clear from localStorage
+    this.localStorageCache.remove(fullKey);
+    
+    console.log(`🗑️ Cleared balance cache for ${owner} on contract ${contractAddress}`);
+  }
+
   // Clear TBA-related cache data specifically
   clearTBACache(): void {
     try {

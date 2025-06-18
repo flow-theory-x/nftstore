@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import type { NFTToken } from "../types";
 import { NftContractService } from "../utils/nftContract";
 import { memberService } from "../utils/memberService";
-import { CONTRACT_ADDRESS, OPENSEA_BASE_URL } from "../constants";
+import { OPENSEA_BASE_URL, isTBAEnabled, isTBATargetContract } from "../constants";
 import type { MemberInfo } from "../types";
 import { useWallet } from "../hooks/useWallet";
 import styles from "./NFTCard.module.css";
@@ -13,11 +13,12 @@ import yachtIcon from "../assets/icons/yacht.svg";
 import sendIcon from "../assets/icons/send.svg";
 import fireIcon from "../assets/icons/fire.svg";
 import copyIcon from "../assets/icons/copy.svg";
+import backpackIcon from "../assets/icons/backpack.svg";
 import { Spinner } from "./Spinner";
+import { TbaService } from "../utils/tbaService";
 
 interface NFTCardProps {
   token: NFTToken;
-  contractAddress?: string;
   showOwner?: boolean;
   onBurn?: () => void;
   onTransfer?: () => void;
@@ -25,14 +26,10 @@ interface NFTCardProps {
 
 export const NFTCard: React.FC<NFTCardProps> = ({
   token,
-  contractAddress,
   onBurn,
   onTransfer,
 }) => {
   const { walletState, getSigner } = useWallet();
-  const params = useParams<{ contractAddress?: string }>();
-  const currentContractAddress =
-    contractAddress || params.contractAddress || CONTRACT_ADDRESS;
   const [metadata, setMetadata] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +37,11 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const [transferring, setTransferring] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [recipientAddress, setRecipientAddress] = useState("");
-  const [ownerMemberInfo, setOwnerMemberInfo] = useState<MemberInfo | null>(null);
+  const [ownerMemberInfo, setOwnerMemberInfo] = useState<MemberInfo | null>(
+    null
+  );
+  const [hasTBA, setHasTBA] = useState(false);
+  const [tbaAccountAddress, setTbaAccountAddress] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -50,7 +51,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       }
 
       try {
-        const contractService = new NftContractService(currentContractAddress);
+        const contractService = new NftContractService(token.contractAddress);
         const meta = await contractService.fetchMetadata(token.tokenURI);
         setMetadata(meta);
       } catch (err) {
@@ -62,7 +63,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     };
 
     fetchMetadata();
-  }, [token.tokenURI]);
+  }, [token.tokenURI, token.contractAddress]);
 
   // Owner member info を取得
   useEffect(() => {
@@ -77,6 +78,31 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     fetchOwnerMemberInfo();
   }, [token.owner]);
 
+  // TBA情報を取得（TBA機能が有効で、対象コントラクトの場合のみ）
+  useEffect(() => {
+    const checkTBA = async () => {
+      if (!isTBAEnabled() || !isTBATargetContract(token.contractAddress)) {
+        setHasTBA(false);
+        return;
+      }
+
+      try {
+        const tbaService = new TbaService();
+        const info = await tbaService.getAccountInfo(token.contractAddress, token.tokenId);
+        setHasTBA(info.isDeployed);
+        if (info.isDeployed) {
+          setTbaAccountAddress(info.accountAddress);
+        }
+      } catch (err) {
+        console.error("Failed to check TBA info:", err);
+        setHasTBA(false);
+        setTbaAccountAddress(null);
+      }
+    };
+
+    checkTBA();
+  }, [token.contractAddress, token.tokenId]);
+
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
@@ -87,6 +113,24 @@ export const NFTCard: React.FC<NFTCardProps> = ({
       alert("Copied!");
     } catch (err) {
       console.error("Failed to copy text: ", err);
+    }
+  };
+
+  const handleOwnerIconClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (ownerMemberInfo?.DiscordId || ownerMemberInfo?.discord_id) {
+      const discordId = ownerMemberInfo.DiscordId || ownerMemberInfo.discord_id;
+      await copyToClipboard(discordId);
+    }
+  };
+
+  const handleTBABadgeClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (tbaAccountAddress) {
+      window.location.href = `/own/${tbaAccountAddress}`;
     }
   };
 
@@ -110,13 +154,16 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
     try {
       setBurning(true);
-      const contractService = new NftContractService(currentContractAddress);
+      const contractService = new NftContractService(token.contractAddress);
       const tx = await contractService.burn(token.tokenId, signer);
 
       alert(`Burn transaction submitted! Hash: ${tx.hash}`);
 
       await tx.wait();
       alert("NFT burned successfully!");
+
+      // Clear balance cache for the owner
+      contractService.clearBalanceCache(token.owner);
 
       if (onBurn) {
         onBurn();
@@ -154,7 +201,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
     try {
       setTransferring(true);
-      const contractService = new NftContractService(currentContractAddress);
+      const contractService = new NftContractService(token.contractAddress);
       const tx = await contractService.transfer(
         token.tokenId,
         recipientAddress.trim(),
@@ -165,6 +212,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
       await tx.wait();
       alert("NFT transferred successfully!");
+
+      // Clear balance cache for both sender and recipient
+      contractService.clearBalanceCache(token.owner);
+      contractService.clearBalanceCache(recipientAddress.trim());
 
       // モーダルを閉じて、入力をリセット
       setShowTransferModal(false);
@@ -182,7 +233,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     }
   };
 
-  const openSeaUrl = `${OPENSEA_BASE_URL}/${currentContractAddress}/${token.tokenId}`;
+  const openSeaUrl = `${OPENSEA_BASE_URL}/${token.contractAddress}/${token.tokenId}`;
   const isOwner =
     walletState.isConnected &&
     walletState.address?.toLowerCase() === token.owner.toLowerCase();
@@ -190,11 +241,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   return (
     <div className={styles.nftCard}>
       <Link
-        to={
-          currentContractAddress !== CONTRACT_ADDRESS
-            ? `/token/${currentContractAddress}/${token.tokenId}`
-            : `/token/${token.tokenId}`
-        }
+        to={`/token/${token.contractAddress}/${token.tokenId}`}
         className={styles.imageLink}
       >
         <div className={styles.imageContainer}>
@@ -227,17 +274,30 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             <div className={styles.noImage}>No Image</div>
           )}
 
+          {/* TBA Badge */}
+          {hasTBA && tbaAccountAddress && (
+            <div 
+              className={styles.tbaBadge} 
+              title="Click to view TBA account"
+              onClick={handleTBABadgeClick}
+              style={{ cursor: 'pointer' }}
+            >
+              <img
+                src={backpackIcon}
+                alt="TBA"
+                width="16"
+                height="16"
+                className={styles.tbaBadgeIcon}
+              />
+            </div>
+          )}
         </div>
       </Link>
 
       <div className={styles.info}>
         <h3 className={styles.name}>
           <Link
-            to={
-              currentContractAddress !== CONTRACT_ADDRESS
-                ? `/token/${currentContractAddress}/${token.tokenId}`
-                : `/token/${token.tokenId}`
-            }
+            to={`/token/${token.contractAddress}/${token.tokenId}`}
             className={styles.nameLink}
           >
             {metadata?.name || `Token #${token.tokenId}`}
@@ -257,21 +317,34 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           </div>
 
           <div className={styles.detail}>
-            <span className={styles.label}>Owner:</span>
+            <span className={styles.label}>
+              Owner:
+              {ownerMemberInfo &&
+                (ownerMemberInfo.Icon || ownerMemberInfo.avatar_url) && (
+                  <img
+                    src={ownerMemberInfo.Icon || ownerMemberInfo.avatar_url}
+                    alt="Owner"
+                    width="20"
+                    height="20"
+                    style={{
+                      borderRadius: "50%",
+                      marginRight: "6px",
+                      cursor: "pointer",
+                    }}
+                    title={`Copy Discord ID: ${
+                      ownerMemberInfo.DiscordId ||
+                      ownerMemberInfo.discord_id ||
+                      "Not available"
+                    }`}
+                    onClick={handleOwnerIconClick}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                )}
+            </span>
             <div className={styles.ownerContainer}>
-              {ownerMemberInfo && (ownerMemberInfo.Icon || ownerMemberInfo.avatar_url) && (
-                <img 
-                  src={ownerMemberInfo.Icon || ownerMemberInfo.avatar_url} 
-                  alt="Owner"
-                  width="20"
-                  height="20"
-                  style={{ borderRadius: "50%", marginRight: "6px" }}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              )}
-              <Link to={`/own/${currentContractAddress}/${token.owner}`}>
+              <Link to={`/own/${token.owner}`}>
                 {formatAddress(token.owner)}
               </Link>
               <button
@@ -283,7 +356,6 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               </button>
             </div>
           </div>
-
         </div>
 
         <div className={styles.actions}>

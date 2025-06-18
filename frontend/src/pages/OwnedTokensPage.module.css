@@ -194,8 +194,8 @@
 
 .copyButton {
   background: none;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  color: #666;
+  border: none;
   padding: 0.25rem 0.5rem;
   cursor: pointer;
   font-size: 0.875rem;

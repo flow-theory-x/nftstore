@@ -565,7 +565,7 @@ export const TokenDetailPage: React.FC = () => {
 
     try {
       setBurning(true);
-      const contractService = new NftContractService(currentContractAddress);
+      const contractService = new NftContractService(token.contractAddress);
       const tx = await contractService.burn(token.tokenId, signer);
 
       alert(`Burn transaction submitted! Hash: ${tx.hash}`);
@@ -573,10 +573,13 @@ export const TokenDetailPage: React.FC = () => {
       await tx.wait();
       alert("NFT burned successfully!");
 
+      // Clear balance cache for the owner
+      contractService.clearBalanceCache(token.owner);
+
       // トークンページに戻る
       const backLink =
-        currentContractAddress !== CONTRACT_ADDRESS
-          ? `/tokens/${currentContractAddress}`
+        token.contractAddress !== CONTRACT_ADDRESS
+          ? `/tokens/${token.contractAddress}`
           : "/tokens";
       navigate(backLink);
     } catch (err: any) {
@@ -653,7 +656,7 @@ export const TokenDetailPage: React.FC = () => {
 
     try {
       setTransferring(true);
-      const contractService = new NftContractService(currentContractAddress);
+      const contractService = new NftContractService(token.contractAddress);
       const tx = await contractService.transfer(
         token.tokenId,
         recipientAddress.trim(),
@@ -664,6 +667,10 @@ export const TokenDetailPage: React.FC = () => {
 
       await tx.wait();
       alert("NFT transferred successfully!");
+
+      // Clear balance cache for both sender and recipient
+      contractService.clearBalanceCache(token.owner);
+      contractService.clearBalanceCache(recipientAddress.trim());
 
       // モーダルを閉じて、入力をリセット
       setShowTransferModal(false);
@@ -1203,7 +1210,6 @@ export const TokenDetailPage: React.FC = () => {
                         <NFTCard
                           key={`${contractAddress}-${token.tokenId}`}
                           token={token}
-                          contractAddress={contractAddress}
                           onBurn={() => {
                             // TBA保有NFTリストを再取得
                             window.location.reload();

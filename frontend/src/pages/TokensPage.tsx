@@ -218,7 +218,6 @@ export const TokensPage: React.FC = () => {
               <NFTCard
                 key={token.tokenId}
                 token={token}
-                contractAddress={contractAddress}
                 onBurn={handleRefresh}
                 onTransfer={handleRefresh}
               />

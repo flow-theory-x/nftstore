@@ -149,13 +149,18 @@ export class NftContractService {
     });
   }
 
-  async getBalanceOf(owner: string): Promise<number> {
+  async getBalanceOf(owner: string, forceRefresh: boolean = false): Promise<number> {
     try {
       const cacheKey = `balance_${owner.toLowerCase()}`;
-      const cached = cacheService.getContractData<number>(this.contractAddress, cacheKey);
-      if (cached !== null && cached !== undefined) {
-        console.log("📋 Cache HIT: getBalanceOf", owner, cached);
-        return cached;
+      
+      if (!forceRefresh) {
+        const cached = cacheService.getContractData<number>(this.contractAddress, cacheKey);
+        if (cached !== null && cached !== undefined) {
+          console.log("📋 Cache HIT: getBalanceOf", owner, cached);
+          return cached;
+        }
+      } else {
+        console.log("🔄 Cache BYPASS: getBalanceOf", owner);
       }
 
       return rateLimiter.execute(async () => {
@@ -173,6 +178,11 @@ export class NftContractService {
       console.error("Failed to get balance:", error);
       throw error;
     }
+  }
+
+  // Clear balance cache for specific owner (useful after transfers)
+  clearBalanceCache(owner: string): void {
+    cacheService.clearBalanceCache(this.contractAddress, owner);
   }
 
   async getTokenOfOwnerByIndex(owner: string, index: number): Promise<string> {
@@ -450,22 +460,28 @@ export class NftContractService {
       }
       
       onProgress?.('Getting balance...');
-      const balance = await this.getBalanceOf(owner);
+      const balance = await this.getBalanceOf(owner, true); // Force refresh to avoid stale cache
       const tokens: NFTToken[] = [];
 
       for (let i = 0; i < balance; i++) {
         onProgress?.(`Getting token ${i + 1}/${balance}`);
-        const tokenId = await this.getTokenOfOwnerByIndex(owner, i);
+        try {
+          const tokenId = await this.getTokenOfOwnerByIndex(owner, i);
         
-        onProgress?.('Getting metadata', tokenId);
-        const tokenURI = await this.getTokenURI(tokenId);
+          onProgress?.('Getting metadata', tokenId);
+          const tokenURI = await this.getTokenURI(tokenId);
 
-        tokens.push({
-          tokenId,
-          owner,
-          tokenURI,
-          contractAddress: this.contractAddress,
-        });
+          tokens.push({
+            tokenId,
+            owner,
+            tokenURI,
+            contractAddress: this.contractAddress,
+          });
+        } catch (error) {
+          console.error(`Failed to get token at index ${i} for owner ${owner}:`, error);
+          // Continue with next token instead of failing entirely
+          continue;
+        }
       }
 
       // tokenIdの降順でソート（新しいものが最初に表示される）
@@ -484,19 +500,25 @@ export class NftContractService {
         return [];
       }
       
-      const balance = await this.getBalanceOf(owner);
+      const balance = await this.getBalanceOf(owner, true); // Force refresh to avoid stale cache
       const tokens: NFTToken[] = [];
 
       for (let i = 0; i < balance; i++) {
-        const tokenId = await this.getTokenOfOwnerByIndex(owner, i);
-        const tokenURI = await this.getTokenURI(tokenId);
+        try {
+          const tokenId = await this.getTokenOfOwnerByIndex(owner, i);
+          const tokenURI = await this.getTokenURI(tokenId);
 
-        tokens.push({
-          tokenId,
-          owner,
-          tokenURI,
-          contractAddress: this.contractAddress,
-        });
+          tokens.push({
+            tokenId,
+            owner,
+            tokenURI,
+            contractAddress: this.contractAddress,
+          });
+        } catch (error) {
+          console.error(`Failed to get token at index ${i} for owner ${owner}:`, error);
+          // Continue with next token instead of failing entirely
+          continue;
+        }
       }
 
       // tokenIdの降順でソート（新しいものが最初に表示される）

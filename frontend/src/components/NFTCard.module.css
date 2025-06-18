@@ -136,14 +136,16 @@
 .detail {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   font-size: 12px;
+  gap: 8px;
 }
 
 .ownerContainer {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .ownerLink {
@@ -159,22 +161,24 @@
 }
 
 .copyButton {
-  background-color: #dddddd;
+  background: none;
+  color: #666;
   border: none;
   cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
   font-size: 12px;
   transition: background-color 0.2s;
 }
 
 .copyButton:hover {
-  background-color: #e9ecef;
+  background-color: #f8f9fa;
 }
 
 .label {
   color: #666;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .value {

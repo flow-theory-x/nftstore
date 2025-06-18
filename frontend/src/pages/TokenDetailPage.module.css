@@ -451,8 +451,6 @@
   background: #e9ecef;
   border: none;
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
   font-size: 12px;
   transition: background-color 0.2s;
 }
@@ -984,7 +982,7 @@
     margin-top: 30px;
     padding: 20px;
   }
-  
+
   .tbaTokenGrid {
     grid-template-columns: 1fr;
     gap: 12px;

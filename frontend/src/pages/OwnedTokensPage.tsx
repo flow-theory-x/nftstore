@@ -32,6 +32,7 @@ export const OwnedTokensPage: React.FC = () => {
   >({});
   const [memberInfo, setMemberInfo] = useState<MemberInfo | null>(null);
   const [memberLoading, setMemberLoading] = useState(false);
+  const [memberInfoFetched, setMemberInfoFetched] = useState(false);
 
   const handleRefresh = () => {
     // ページをリロードして最新データを取得
@@ -41,113 +42,11 @@ export const OwnedTokensPage: React.FC = () => {
   const isOwnAddress =
     walletState.address?.toLowerCase() === address?.toLowerCase();
 
-  useEffect(() => {
-    const fetchAllContractsData = async () => {
-      if (!address) {
-        setGlobalLoading(false);
-        return;
-      }
-
-      try {
-        setGlobalLoading(true);
-
-        // If specific contract is requested, only fetch that one
-        const contractsToFetch = contractAddress
-          ? [contractAddress]
-          : [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
-
-        const contractPromises = contractsToFetch.map(async (contractAddr) => {
-          try {
-            const contractService = new NftContractService(contractAddr);
-
-            // 進捗メッセージを更新
-            setLoadingMessages((prev) => ({
-              ...prev,
-              [contractAddr]: "Connecting to contract...",
-            }));
-
-            // コントラクト名を取得
-            setLoadingMessages((prev) => ({
-              ...prev,
-              [contractAddr]: "Getting contract name...",
-            }));
-            const name = await contractService.getName();
-
-            // 所有トークンを取得
-            const progressHandler = (message: string, tokenId?: string) => {
-              setLoadingMessages((prev) => ({
-                ...prev,
-                [contractAddr]: tokenId
-                  ? `Processing token #${tokenId}: ${message}`
-                  : message,
-              }));
-            };
-            const ownedTokens =
-              await contractService.getTokensByOwnerWithProgress(
-                address,
-                progressHandler
-              );
-
-            // 完了
-            setLoadingMessages((prev) => {
-              const newMessages = { ...prev };
-              delete newMessages[contractAddr];
-              return newMessages;
-            });
-
-            return {
-              contractAddress: contractAddr,
-              contractName:
-                name ||
-                `Contract ${contractAddr.slice(0, 6)}...${contractAddr.slice(
-                  -4
-                )}`,
-              tokens: ownedTokens,
-              loading: false,
-              error: null,
-            };
-          } catch (err: any) {
-            console.error(
-              `Failed to fetch data for contract ${contractAddr}:`,
-              err
-            );
-
-            // エラー時もメッセージをクリア
-            setLoadingMessages((prev) => {
-              const newMessages = { ...prev };
-              delete newMessages[contractAddr];
-              return newMessages;
-            });
-
-            return {
-              contractAddress: contractAddr,
-              contractName: `Contract ${contractAddr.slice(
-                0,
-                6
-              )}...${contractAddr.slice(-4)}`,
-              tokens: [],
-              loading: false,
-              error: err.message || "Failed to fetch data",
-            };
-          }
-        });
-
-        const results = await Promise.all(contractPromises);
-        setContractsData(results);
-      } catch (err: any) {
-        console.error("Failed to fetch contracts data:", err);
-      } finally {
-        setGlobalLoading(false);
-      }
-    };
-
-    fetchAllContractsData();
-  }, [contractAddress, address]);
-
-  // メンバー情報を取得
+  // First, fetch member info
   useEffect(() => {
     const fetchMemberInfo = async () => {
       if (!address) {
+        setMemberInfoFetched(true);
         return;
       }
 
@@ -162,11 +61,148 @@ export const OwnedTokensPage: React.FC = () => {
         setMemberInfo(null);
       } finally {
         setMemberLoading(false);
+        setMemberInfoFetched(true);
       }
     };
 
     fetchMemberInfo();
   }, [address]);
+
+  // Initialize contract frames immediately after member info is fetched
+  useEffect(() => {
+    if (!address || !memberInfoFetched) {
+      if (!address) {
+        setGlobalLoading(false);
+      }
+      return;
+    }
+
+    // Initialize contract data with loading state
+    const contractsToFetch = contractAddress
+      ? [contractAddress]
+      : [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
+
+    const initialContractsData = contractsToFetch.map((contractAddr) => ({
+      contractAddress: contractAddr,
+      contractName: `Contract ${contractAddr.slice(0, 6)}...${contractAddr.slice(-4)}`,
+      tokens: [],
+      loading: true,
+      error: null,
+    }));
+
+    setContractsData(initialContractsData);
+    setGlobalLoading(false);
+  }, [contractAddress, address, memberInfoFetched]);
+
+  // Then, fetch contract names and tokens
+  useEffect(() => {
+    const fetchAllContractsData = async () => {
+      if (!address || !memberInfoFetched) {
+        return;
+      }
+
+      const contractsToFetch = contractAddress
+        ? [contractAddress]
+        : [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
+
+      // Fetch data for each contract
+      contractsToFetch.forEach(async (contractAddr, index) => {
+        try {
+          const contractService = new NftContractService(contractAddr);
+
+          // 進捗メッセージを更新
+          setLoadingMessages((prev) => ({
+            ...prev,
+            [contractAddr]: "Connecting to contract...",
+          }));
+
+          // コントラクト名を取得
+          setLoadingMessages((prev) => ({
+            ...prev,
+            [contractAddr]: "Getting contract name...",
+          }));
+          const name = await contractService.getName();
+
+          // Update contract name immediately
+          setContractsData((prev) =>
+            prev.map((contract, i) =>
+              i === index
+                ? {
+                    ...contract,
+                    contractName:
+                      name ||
+                      `Contract ${contractAddr.slice(0, 6)}...${contractAddr.slice(-4)}`,
+                  }
+                : contract
+            )
+          );
+
+          // 所有トークンを取得
+          const progressHandler = (message: string, tokenId?: string) => {
+            setLoadingMessages((prev) => ({
+              ...prev,
+              [contractAddr]: tokenId
+                ? `Processing token #${tokenId}: ${message}`
+                : message,
+            }));
+          };
+          const ownedTokens = await contractService.getTokensByOwnerWithProgress(
+            address,
+            progressHandler
+          );
+
+          // 完了
+          setLoadingMessages((prev) => {
+            const newMessages = { ...prev };
+            delete newMessages[contractAddr];
+            return newMessages;
+          });
+
+          // Update contract data with tokens
+          setContractsData((prev) =>
+            prev.map((contract, i) =>
+              i === index
+                ? {
+                    ...contract,
+                    tokens: ownedTokens,
+                    loading: false,
+                    error: null,
+                  }
+                : contract
+            )
+          );
+        } catch (err: unknown) {
+          console.error(
+            `Failed to fetch data for contract ${contractAddr}:`,
+            err
+          );
+
+          // エラー時もメッセージをクリア
+          setLoadingMessages((prev) => {
+            const newMessages = { ...prev };
+            delete newMessages[contractAddr];
+            return newMessages;
+          });
+
+          // Update contract data with error
+          setContractsData((prev) =>
+            prev.map((contract, i) =>
+              i === index
+                ? {
+                    ...contract,
+                    tokens: [],
+                    loading: false,
+                    error: err instanceof Error ? err.message : "Failed to fetch data",
+                  }
+                : contract
+            )
+          );
+        }
+      });
+    };
+
+    fetchAllContractsData();
+  }, [contractAddress, address, memberInfoFetched]);
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -185,7 +221,6 @@ export const OwnedTokensPage: React.FC = () => {
     (total, contract) => total + contract.tokens.length,
     0
   );
-  const hasAnyTokens = totalTokens > 0;
 
   if (globalLoading) {
     const activeMessages = Object.entries(loadingMessages);
@@ -196,12 +231,21 @@ export const OwnedTokensPage: React.FC = () => {
             ? "My Tokens"
             : `Tokens owned by ${formatAddress(address || "")}`}
         </h1>
+        
+        {/* メンバー情報を先に表示 */}
+        <MemberInfoCard
+          memberInfo={memberInfo}
+          loading={memberLoading}
+          address={address || ""}
+        />
+        
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             gap: "16px",
+            marginTop: "24px",
           }}
         >
           <Spinner size="large" text="Loading NFTs and SBTs from all contracts..." />
@@ -265,7 +309,7 @@ export const OwnedTokensPage: React.FC = () => {
         address={address || ""}
       />
 
-      {!hasAnyTokens ? (
+      {contractsData.length === 0 || contractsData.filter(c => c.loading || c.tokens.length > 0 || c.error).length === 0 ? (
         <div className={styles.empty}>
           <p>
             {isOwnAddress
@@ -281,9 +325,10 @@ export const OwnedTokensPage: React.FC = () => {
       ) : (
         <div className={styles.contractSections}>
           {contractsData
-            .filter(
-              (contractData) =>
-                contractData.tokens.length > 0 || contractData.error
+            .filter((contractData) => 
+              contractData.loading || 
+              contractData.tokens.length > 0 || 
+              contractData.error
             )
             .map((contractData) => (
               <div
@@ -313,12 +358,16 @@ export const OwnedTokensPage: React.FC = () => {
                       📋
                     </button>
                   </div>
-                  {contractData.tokens.length > 0 && (
+                  {contractData.loading ? (
+                    <span className={styles.tokenCount}>Loading tokens...</span>
+                  ) : contractData.tokens.length > 0 ? (
                     <span className={styles.tokenCount}>
                       {contractData.tokens.length} token
                       {contractData.tokens.length !== 1 ? "s" : ""}
                     </span>
-                  )}
+                  ) : !contractData.error ? (
+                    <span className={styles.tokenCount}>No tokens found</span>
+                  ) : null}
                 </div>
 
                 {contractData.error ? (
@@ -331,6 +380,24 @@ export const OwnedTokensPage: React.FC = () => {
                     >
                       Copy
                     </button>
+                  </div>
+                ) : contractData.loading ? (
+                  <div className={styles.grid}>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      padding: '40px',
+                      gap: '12px'
+                    }}>
+                      <Spinner size="medium" />
+                      <span>Loading tokens from this contract...</span>
+                      {loadingMessages[contractData.contractAddress] && (
+                        <span style={{ fontSize: '0.9em', color: '#666' }}>
+                          ({loadingMessages[contractData.contractAddress]})
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className={styles.grid}>
