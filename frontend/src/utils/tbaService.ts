@@ -11,6 +11,8 @@ import {
 import tbaRegistryAbi from "../../config/tba_registry_abi.json";
 import tbaAccountAbi from "../../config/tba_account_abi.json";
 import { cacheService } from "./cache";
+import { NftContractService } from "./nftContract";
+import type { NFTToken } from "../types";
 
 export interface TBAAccountInfo {
   accountAddress: string;

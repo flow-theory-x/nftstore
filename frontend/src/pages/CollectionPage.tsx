@@ -24,6 +24,8 @@ export const CollectionPage: React.FC = () => {
   }[]>([]);
   const [loadingNft, setLoadingNft] = useState(true);
   const [loadingSbt, setLoadingSbt] = useState(true);
+  const [nftLoadingMessage, setNftLoadingMessage] = useState("Loading NFT collections...");
+  const [sbtLoadingMessage, setSbtLoadingMessage] = useState("Loading SBT collections...");
 
   // NFTコレクション情報を取得
   useEffect(() => {
@@ -32,30 +34,39 @@ export const CollectionPage: React.FC = () => {
         setLoadingNft(true);
         console.log(`🔍 Fetching NFT collection features for ${TBA_TARGET_NFT_CA_ADDRESSES.length} contracts`);
         
-        // 各コントラクトのコントラクト名とtotalSupplyを並行取得
-        const contractPromises = TBA_TARGET_NFT_CA_ADDRESSES.map(async (address) => {
+        setNftLoadingMessage(`Processing ${TBA_TARGET_NFT_CA_ADDRESSES.length} NFT contracts...`);
+        
+        // Process each contract sequentially to show progress
+        const results = [];
+        for (let i = 0; i < TBA_TARGET_NFT_CA_ADDRESSES.length; i++) {
+          const address = TBA_TARGET_NFT_CA_ADDRESSES[i];
+          const shortAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
+          
           try {
+            setNftLoadingMessage(`Connecting to contract ${i + 1}/${TBA_TARGET_NFT_CA_ADDRESSES.length}: ${shortAddress}`);
             const contractService = new NftContractService(address);
-            const [contractName, totalSupply] = await Promise.all([
-              contractService.getName(),
-              contractService.getTotalSupply()
-            ]);
-            return {
+            
+            setNftLoadingMessage(`Getting name for ${shortAddress}...`);
+            const contractName = await contractService.getName();
+            
+            setNftLoadingMessage(`Getting supply for ${shortAddress}...`);
+            const totalSupply = await contractService.getTotalSupply();
+            
+            results.push({
               contractAddress: address,
-              contractName: contractName || `NFT ${address.slice(0, 6)}...${address.slice(-4)}`,
+              contractName: contractName || `NFT ${shortAddress}`,
               totalSupply: totalSupply || 0,
-            };
+            });
           } catch (err) {
             console.warn(`Failed to fetch NFT contract info for ${address}:`, err);
-            return {
+            results.push({
               contractAddress: address,
-              contractName: `NFT ${address.slice(0, 6)}...${address.slice(-4)}`,
+              contractName: `NFT ${shortAddress}`,
               totalSupply: 0,
-            };
+            });
           }
-        });
+        }
         
-        const results = await Promise.all(contractPromises);
         // totalSupplyが0より大きいコントラクトのみをフィルタリング
         const filteredResults = results.filter(result => result.totalSupply > 0);
         setNftCollectionFeatures(filteredResults);
@@ -85,30 +96,39 @@ export const CollectionPage: React.FC = () => {
         setLoadingSbt(true);
         console.log(`🔍 Fetching SBT collection features for ${TBA_TARGET_SBT_CA_ADDRESSES.length} contracts`);
         
-        // 各コントラクトのコントラクト名とtotalSupplyを並行取得
-        const contractPromises = TBA_TARGET_SBT_CA_ADDRESSES.map(async (address) => {
+        setSbtLoadingMessage(`Processing ${TBA_TARGET_SBT_CA_ADDRESSES.length} SBT contracts...`);
+        
+        // Process each contract sequentially to show progress
+        const results = [];
+        for (let i = 0; i < TBA_TARGET_SBT_CA_ADDRESSES.length; i++) {
+          const address = TBA_TARGET_SBT_CA_ADDRESSES[i];
+          const shortAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
+          
           try {
+            setSbtLoadingMessage(`Connecting to contract ${i + 1}/${TBA_TARGET_SBT_CA_ADDRESSES.length}: ${shortAddress}`);
             const contractService = new NftContractService(address);
-            const [contractName, totalSupply] = await Promise.all([
-              contractService.getName(),
-              contractService.getTotalSupply()
-            ]);
-            return {
+            
+            setSbtLoadingMessage(`Getting name for ${shortAddress}...`);
+            const contractName = await contractService.getName();
+            
+            setSbtLoadingMessage(`Getting supply for ${shortAddress}...`);
+            const totalSupply = await contractService.getTotalSupply();
+            
+            results.push({
               contractAddress: address,
-              contractName: contractName || `SBT ${address.slice(0, 6)}...${address.slice(-4)}`,
+              contractName: contractName || `SBT ${shortAddress}`,
               totalSupply: totalSupply || 0,
-            };
+            });
           } catch (err) {
             console.warn(`Failed to fetch SBT contract info for ${address}:`, err);
-            return {
+            results.push({
               contractAddress: address,
-              contractName: `SBT ${address.slice(0, 6)}...${address.slice(-4)}`,
+              contractName: `SBT ${shortAddress}`,
               totalSupply: 0,
-            };
+            });
           }
-        });
+        }
         
-        const results = await Promise.all(contractPromises);
         // totalSupplyが0より大きいコントラクトと0のコントラクトを分離
         const filteredResults = results.filter(result => result.totalSupply > 0);
         const zeroSupplyResults = results.filter(result => result.totalSupply === 0);
@@ -134,7 +154,7 @@ export const CollectionPage: React.FC = () => {
         <div className={styles.placeholder}>
           <h3>Collection NFT Features</h3>
           {loadingNft ? (
-            <Spinner size="medium" text="Loading NFT collections..." />
+            <Spinner size="medium" text={nftLoadingMessage} />
           ) : nftCollectionFeatures.length > 0 ? (
             <ul>
               {nftCollectionFeatures.map((feature) => (
@@ -162,7 +182,7 @@ export const CollectionPage: React.FC = () => {
         <div className={styles.placeholder}>
           <h3>Collection SBT Features</h3>
           {loadingSbt ? (
-            <Spinner size="medium" text="Loading SBT collections..." />
+            <Spinner size="medium" text={sbtLoadingMessage} />
           ) : sbtCollectionFeatures.length > 0 ? (
             <ul>
               {sbtCollectionFeatures.map((feature) => (
