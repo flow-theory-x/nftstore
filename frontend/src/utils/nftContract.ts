@@ -3,6 +3,7 @@ import { CONTRACT_ADDRESS, RPC_URL, DEAD_ADDRESS } from "../constants";
 import type { NFTToken, ContractInfo } from "../types";
 import contractAbi from "../../config/nft_abi.json";
 import { cacheService } from "./cache";
+import { rateLimiter } from "./rateLimiter";
 
 export class NftContractService {
   private provider: ethers.JsonRpcProvider;
@@ -57,36 +58,27 @@ export class NftContractService {
   }
 
   async getTotalSupply(): Promise<number> {
-    try {
+    return rateLimiter.executeWithRetry(async () => {
       console.log("🔗 Blockchain CALL: getTotalSupply");
       const supply = await (this.contract as any).totalSupply();
       const result = Number(supply);
       return result;
-    } catch (error) {
-      console.error("Failed to get total supply:", error);
-      throw error;
-    }
+    });
   }
 
   async getName(): Promise<string> {
-    try {
+    return rateLimiter.executeWithRetry(async () => {
       console.log("🔗 Blockchain CALL: getName (no cache)");
       const name = await (this.contract as any).name();
       return name;
-    } catch (error) {
-      console.error("Failed to get contract name:", error);
-      throw error;
-    }
+    });
   }
 
   async getTokenByIndex(index: number): Promise<string> {
-    try {
+    return rateLimiter.execute(async () => {
       const tokenId = await (this.contract as any).tokenByIndex(index);
       return tokenId.toString();
-    } catch (error) {
-      console.error("Failed to get token by index:", error);
-      throw error;
-    }
+    });
   }
 
   async getTokenURI(tokenId: string): Promise<string> {
@@ -98,7 +90,9 @@ export class NftContractService {
       }
 
       console.log("🔗 Blockchain CALL: getTokenURI", tokenId);
-      const uri = await (this.contract as any).tokenURI(tokenId);
+      const uri = await rateLimiter.execute(async () => {
+        return await (this.contract as any).tokenURI(tokenId);
+      });
 
       // Update cache with token info
       const existingInfo = cached || {};
@@ -116,38 +110,29 @@ export class NftContractService {
   }
 
   async getOwnerOf(tokenId: string): Promise<string> {
-    try {
+    return rateLimiter.execute(async () => {
       console.log("🔗 Blockchain CALL: getOwnerOf (no cache)", tokenId);
       const owner = await (this.contract as any).ownerOf(tokenId);
       return owner;
-    } catch (error) {
-      console.error("Failed to get owner of token:", error);
-      throw error;
-    }
+    });
   }
 
   async getBalanceOf(owner: string): Promise<number> {
-    try {
+    return rateLimiter.execute(async () => {
       console.log("🔗 Blockchain CALL: getBalanceOf (no cache)", owner);
       const balance = await (this.contract as any).balanceOf(owner);
       return Number(balance);
-    } catch (error) {
-      console.error("Failed to get balance:", error);
-      throw error;
-    }
+    });
   }
 
   async getTokenOfOwnerByIndex(owner: string, index: number): Promise<string> {
-    try {
+    return rateLimiter.execute(async () => {
       const tokenId = await (this.contract as any).tokenOfOwnerByIndex(
         owner,
         index
       );
       return tokenId.toString();
-    } catch (error) {
-      console.error("Failed to get token of owner by index:", error);
-      throw error;
-    }
+    });
   }
 
   async getAllTokens(): Promise<NFTToken[]> {

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { WalletConnect } from "./WalletConnect";
+import { RateLimitNotification } from "./RateLimitNotification";
 import { useWallet } from "../hooks/useWallet";
 import {
   COPYRIGHT_YEAR,
@@ -154,6 +155,7 @@ export const Layout: React.FC = () => {
       <main className={styles.main}>
         <Outlet />
       </main>
+      <RateLimitNotification />
       <footer className={styles.footer}>
         <p>
           &copy; {COPYRIGHT_YEAR}{" "}

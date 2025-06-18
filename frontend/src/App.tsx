@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { Layout } from './components/Layout';
+import { RateLimitProvider, useRateLimit } from './contexts/RateLimitContext';
+import { rateLimiter } from './utils/rateLimiter';
 
 // 遅延読み込みでページコンポーネントを分割
 const TokensPage = lazy(() => import('./pages/TokensPage').then(module => ({ default: module.TokensPage })));
@@ -9,7 +11,15 @@ const MintPage = lazy(() => import('./pages/MintPage').then(module => ({ default
 const TokenDetailPage = lazy(() => import('./pages/TokenDetailPage').then(module => ({ default: module.TokenDetailPage })));
 const CollectionPage = lazy(() => import('./pages/CollectionPage').then(module => ({ default: module.CollectionPage })));
 
-function App() {
+const AppContent: React.FC = () => {
+  const { setRateLimit, incrementRetry } = useRateLimit();
+
+  useEffect(() => {
+    // RateLimiterのコールバックを設定
+    rateLimiter.setRateLimitCallback(setRateLimit);
+    rateLimiter.setRetryCallback(incrementRetry);
+  }, [setRateLimit, incrementRetry]);
+
   return (
     <Router>
       <Routes>
@@ -68,6 +78,14 @@ function App() {
         </Route>
       </Routes>
     </Router>
+  );
+};
+
+function App() {
+  return (
+    <RateLimitProvider>
+      <AppContent />
+    </RateLimitProvider>
   );
 }
 
