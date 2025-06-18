@@ -64,13 +64,3 @@ export const isTBATargetContract = (contractAddress: string): boolean => {
          TBA_TARGET_SBT_CA_ADDRESSES.some(addr => addr.toLowerCase() === address);
 };
 
-// =============================================================================
-// TEMPORARY DEBUG LOGGING - Remove after troubleshooting TBA configuration
-// =============================================================================
-console.log("🔍 TBA Configuration Debug Logging:");
-console.log("1. TBA_TARGET_NFT_CA_ADDRESSES:", TBA_TARGET_NFT_CA_ADDRESSES);
-console.log("2. TBA_TARGET_SBT_CA_ADDRESSES:", TBA_TARGET_SBT_CA_ADDRESSES);
-console.log("3. isTBAEnabled():", isTBAEnabled());
-console.log("4. isTBATargetContract('0xa15EA22D4893b73787171a86477a69e02B071bb7'):", isTBATargetContract('0xa15EA22D4893b73787171a86477a69e02B071bb7'));
-console.log("🔍 End TBA Configuration Debug Logging");
-// =============================================================================

@@ -299,16 +299,14 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
           {isOwner && (
             <>
-              {!TBA_TARGET_SBT_CA_ADDRESSES.includes(contractAddress || "") && (
-                <button
-                  onClick={() => setShowTransferModal(true)}
-                  disabled={transferring}
-                  className={styles.transferButton}
-                  title={transferring ? "Transferring..." : "Send NFT"}
-                >
-                  <img src={sendIcon} alt="Send" width="16" height="16" />
-                </button>
-              )}
+              <button
+                onClick={() => setShowTransferModal(true)}
+                disabled={transferring}
+                className={styles.transferButton}
+                title={transferring ? "Transferring..." : "Send NFT"}
+              >
+                <img src={sendIcon} alt="Send" width="16" height="16" />
+              </button>
               <button
                 onClick={handleBurn}
                 disabled={burning}
