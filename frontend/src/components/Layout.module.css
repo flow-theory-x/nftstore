@@ -2,6 +2,7 @@
   min-height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  position: relative;
 }
 
 .header {
@@ -159,6 +160,21 @@
   padding: 1rem 0;
   text-align: center;
   color: #666;
+}
+
+@media (min-width: 769px) {
+  .layout {
+    position: relative;
+    padding-bottom: 60px; /* フッターの高さ分のパディング */
+  }
+  
+  .footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+  }
 }
 
 .footer p {
