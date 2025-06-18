@@ -3,25 +3,17 @@ import ReactDOM from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import type { NFTToken } from "../types";
 import { NftContractService } from "../utils/nftContract";
-import { TbaService } from "../utils/tbaService";
 import { memberService } from "../utils/memberService";
-import { CONTRACT_ADDRESS, OPENSEA_BASE_URL, TBA_TARGET_SBT_CA_ADDRESSES, TBA_TARGET_NFT_CA_ADDRESSES } from "../constants";
+import { CONTRACT_ADDRESS, OPENSEA_BASE_URL } from "../constants";
 import type { MemberInfo } from "../types";
 import { useWallet } from "../hooks/useWallet";
 import styles from "./NFTCard.module.css";
-// Option 1: Import as React components (current approach)
-// import { YachtIcon, SendIcon, FireIcon, CopyIcon } from "../assets/icons";
 
-// Option 2: Import as URL strings
 import yachtIcon from "../assets/icons/yacht.svg";
 import sendIcon from "../assets/icons/send.svg";
 import fireIcon from "../assets/icons/fire.svg";
 import copyIcon from "../assets/icons/copy.svg";
-import backpackIcon from "../assets/icons/backpack.svg";
 import { Spinner } from "./Spinner";
-
-// Option 3: Import raw SVG content (add ?raw to any SVG)
-// import yachtSvg from "../assets/icons/yacht.svg?raw";
 
 interface NFTCardProps {
   token: NFTToken;
@@ -48,13 +40,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const [transferring, setTransferring] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [recipientAddress, setRecipientAddress] = useState("");
-  const [tbaInfo, setTbaInfo] = useState<{
-    accountAddress: string;
-    isDeployed: boolean;
-    balance: string;
-  } | null>(null);
   const [ownerMemberInfo, setOwnerMemberInfo] = useState<MemberInfo | null>(null);
-  const [isOwnerTBA, setIsOwnerTBA] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -78,63 +64,13 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     fetchMetadata();
   }, [token.tokenURI]);
 
-  // TBA情報を取得
-  useEffect(() => {
-    const fetchTBAInfo = async () => {
-      try {
-        const tbaService = new TbaService();
-        const info = await tbaService.getAccountInfo(
-          currentContractAddress,
-          token.tokenId
-        );
-        setTbaInfo(info);
-      } catch (err) {
-        // TBA情報の取得に失敗した場合は表示しない
-        console.debug("TBA info not available for token", token.tokenId);
-      }
-    };
-
-    fetchTBAInfo();
-  }, [token.tokenId, currentContractAddress]);
-
   // Owner member info を取得
   useEffect(() => {
     const fetchOwnerMemberInfo = async () => {
       if (token.owner) {
-        console.log(`🔍 NFTCard: Checking owner ${token.owner} for token ${token.tokenId}`);
-        // TBAアドレスかチェック
-        const tbaService = new TbaService();
-        let isTBA = false;
-        
-        try {
-          // まず既知のコントラクトから生成されたTBAアドレスかどうかを確認
-          const sourceToken = await tbaService.findTBASourceToken(token.owner);
-          if (sourceToken) {
-            console.log(`🎯 Owner ${token.owner} is TBA for ${sourceToken.contractAddress}#${sourceToken.tokenId}`);
-            isTBA = true;
-          } else {
-            // フォールバック: コントラクトメソッドで確認
-            isTBA = await tbaService.isTBAAccount(token.owner);
-          }
-          
-          // デバッグ用: グローバルに公開
-          if (typeof window !== 'undefined') {
-            (window as any).debugTBA = (address: string) => tbaService.debugTBACheck(address);
-          }
-        } catch (err) {
-          // エラー時はfalseとして続行
-          console.debug('TBA check failed:', err);
-        }
-        
-        console.log(`👁️ NFTCard: Owner ${token.owner} isTBA=${isTBA}`);
-        setIsOwnerTBA(isTBA);
-        
-        if (!isTBA) {
-          const memberInfo = await memberService.getMemberInfo(token.owner);
-          setOwnerMemberInfo(memberInfo);
-        } else {
-          setOwnerMemberInfo(null);
-        }
+        console.log(`🔍 NFTCard: Fetching owner info for ${token.owner}`);
+        const memberInfo = await memberService.getMemberInfo(token.owner);
+        setOwnerMemberInfo(memberInfo);
       }
     };
 
@@ -291,18 +227,6 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             <div className={styles.noImage}>No Image</div>
           )}
 
-          {/* TBA Badge - 画像上に重ねて表示 */}
-          {tbaInfo && tbaInfo.isDeployed && (
-            <div className={styles.tbaBadge}>
-              <img
-                src={backpackIcon}
-                alt="TBA Deployed"
-                width="12"
-                height="12"
-                className={styles.tbaBadgeIcon}
-              />
-            </div>
-          )}
         </div>
       </Link>
 
@@ -335,15 +259,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
           <div className={styles.detail}>
             <span className={styles.label}>Owner:</span>
             <div className={styles.ownerContainer}>
-              {isOwnerTBA ? (
-                <img 
-                  src={backpackIcon} 
-                  alt="TBA Owner"
-                  width="20"
-                  height="20"
-                  style={{ marginRight: "6px" }}
-                />
-              ) : ownerMemberInfo && (ownerMemberInfo.Icon || ownerMemberInfo.avatar_url) && (
+              {ownerMemberInfo && (ownerMemberInfo.Icon || ownerMemberInfo.avatar_url) && (
                 <img 
                   src={ownerMemberInfo.Icon || ownerMemberInfo.avatar_url} 
                   alt="Owner"
@@ -368,24 +284,6 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             </div>
           </div>
 
-          {/* TBA Address表示 */}
-          {tbaInfo && tbaInfo.isDeployed && (
-            <div className={styles.detail}>
-              <span className={styles.label}>TBA:</span>
-              <div className={styles.ownerContainer}>
-                <Link to={`/own/${tbaInfo.accountAddress}`} className={styles.tbaAddress}>
-                  {formatAddress(tbaInfo.accountAddress)}
-                </Link>
-                <button
-                  onClick={() => copyToClipboard(tbaInfo.accountAddress)}
-                  className={styles.copyButton}
-                  title="Copy TBA address"
-                >
-                  <img src={copyIcon} alt="Copy" width="14" height="14" />
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className={styles.actions}>

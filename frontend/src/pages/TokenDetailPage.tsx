@@ -10,6 +10,8 @@ import {
   MODEL_VIEWER_BASE_URL,
   TBA_TARGET_NFT_CA_ADDRESSES,
   TBA_TARGET_SBT_CA_ADDRESSES,
+  isTBAEnabled,
+  isTBATargetContract,
 } from "../constants";
 import type { NFTToken, MemberInfo } from "../types";
 import styles from "./TokenDetailPage.module.css";
@@ -59,7 +61,9 @@ export const TokenDetailPage: React.FC = () => {
     };
   }>({});
   const [loadingTbaTokens, setLoadingTbaTokens] = useState(false);
-  const [ownerMemberInfo, setOwnerMemberInfo] = useState<MemberInfo | null>(null);
+  const [ownerMemberInfo, setOwnerMemberInfo] = useState<MemberInfo | null>(
+    null
+  );
   const [loadingOwnerInfo, setLoadingOwnerInfo] = useState(false);
   const [isOwnerTBA, setIsOwnerTBA] = useState<boolean>(false);
 
@@ -114,12 +118,73 @@ export const TokenDetailPage: React.FC = () => {
     fetchTokenDetail();
   }, [contractAddress, tokenId, currentContractAddress]);
 
-  // TBA情報を取得
+  // Owner member info を取得
   useEffect(() => {
-    const fetchTBAInfo = async () => {
-      if (!tokenId || !currentContractAddress) return;
+    const fetchOwnerMemberInfo = async () => {
+      if (token?.owner) {
+        setLoadingOwnerInfo(true);
 
+        let isTBA = false;
+
+        // TBA機能が有効な場合のみTBAチェックを実行
+        if (isTBAEnabled()) {
+          try {
+            const tbaService = new TbaService();
+            // まず既知のコントラクトから生成されたTBAアドレスかどうかを確認
+            const sourceToken = await tbaService.findTBASourceToken(
+              token.owner
+            );
+            if (sourceToken) {
+              console.log(
+                `🎯 Owner ${token.owner} is TBA for ${sourceToken.contractAddress}#${sourceToken.tokenId}`
+              );
+              isTBA = true;
+            } else {
+              // フォールバック: コントラクトメソッドで確認
+              isTBA = await tbaService.isTBAAccount(token.owner);
+            }
+          } catch (err) {
+            // エラー時はfalseとして続行
+            console.debug("TBA check failed:", err);
+          }
+        } else {
+          console.log(
+            `⏭️ TokenDetailPage: Skipping TBA check (TBA not enabled)`
+          );
+        }
+
+        setIsOwnerTBA(isTBA);
+
+        if (!isTBA) {
+          const memberInfo = await memberService.getMemberInfo(token.owner);
+          setOwnerMemberInfo(memberInfo);
+        } else {
+          setOwnerMemberInfo(null);
+        }
+
+        setLoadingOwnerInfo(false);
+      }
+    };
+
+    fetchOwnerMemberInfo();
+  }, [token?.owner]);
+
+  // TBA情報を取得（TBA機能が有効で、対象コントラクトの場合のみ）
+  useEffect(() => {
+    if (!tokenId || !currentContractAddress) return;
+
+    if (!isTBAEnabled() || !isTBATargetContract(currentContractAddress)) {
+      console.log(
+        `⏭️ TokenDetailPage: Skipping TBA info for ${currentContractAddress} (not TBA target)`
+      );
+      return;
+    }
+
+    const fetchTBAInfo = async () => {
       try {
+        console.log(
+          `🔍 TokenDetailPage: Fetching TBA info for token ${tokenId}`
+        );
         const tbaService = new TbaService();
         const info = await tbaService.getAccountInfo(
           currentContractAddress,
@@ -134,50 +199,16 @@ export const TokenDetailPage: React.FC = () => {
 
     fetchTBAInfo();
   }, [tokenId, currentContractAddress]);
+  // TBA保有NFTを取得（複数コントラクト対応、TBA機能が有効な場合のみ）
 
-  // Owner member info を取得
   useEffect(() => {
-    const fetchOwnerMemberInfo = async () => {
-      if (token?.owner) {
-        setLoadingOwnerInfo(true);
-        
-        // TBAアドレスかチェック
-        const tbaService = new TbaService();
-        let isTBA = false;
-        
-        try {
-          // まず既知のコントラクトから生成されたTBAアドレスかどうかを確認
-          const sourceToken = await tbaService.findTBASourceToken(token.owner);
-          if (sourceToken) {
-            console.log(`🎯 Owner ${token.owner} is TBA for ${sourceToken.contractAddress}#${sourceToken.tokenId}`);
-            isTBA = true;
-          } else {
-            // フォールバック: コントラクトメソッドで確認
-            isTBA = await tbaService.isTBAAccount(token.owner);
-          }
-        } catch (err) {
-          // エラー時はfalseとして続行
-          console.debug('TBA check failed:', err);
-        }
-        
-        setIsOwnerTBA(isTBA);
-        
-        if (!isTBA) {
-          const memberInfo = await memberService.getMemberInfo(token.owner);
-          setOwnerMemberInfo(memberInfo);
-        } else {
-          setOwnerMemberInfo(null);
-        }
-        
-        setLoadingOwnerInfo(false);
-      }
-    };
+    if (!isTBAEnabled()) {
+      console.log(
+        `⏭️ TokenDetailPage: Skipping TBA owned tokens (TBA not enabled)`
+      );
+      return;
+    }
 
-    fetchOwnerMemberInfo();
-  }, [token?.owner]);
-
-  // TBA保有NFTを取得（複数コントラクト対応）
-  useEffect(() => {
     const fetchTBAOwnedTokensForAllContracts = async () => {
       if (!tbaInfo || !tbaInfo.isDeployed || !tbaInfo.accountAddress) {
         setTbaOwnedTokensByContract({});
@@ -961,24 +992,27 @@ export const TokenDetailPage: React.FC = () => {
                 <span className={styles.propertyLabel}>Owner</span>
                 <div className={styles.propertyValue}>
                   {isOwnerTBA ? (
-                    <img 
-                      src={backpackIcon} 
+                    <img
+                      src={backpackIcon}
                       alt="TBA Owner"
                       width="20"
                       height="20"
                       style={{ marginRight: "8px" }}
                     />
-                  ) : ownerMemberInfo && (ownerMemberInfo.Icon || ownerMemberInfo.avatar_url) && (
-                    <img 
-                      src={ownerMemberInfo.Icon || ownerMemberInfo.avatar_url} 
-                      alt="Owner"
-                      width="20"
-                      height="20"
-                      style={{ borderRadius: "50%", marginRight: "8px" }}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+                  ) : (
+                    ownerMemberInfo &&
+                    (ownerMemberInfo.Icon || ownerMemberInfo.avatar_url) && (
+                      <img
+                        src={ownerMemberInfo.Icon || ownerMemberInfo.avatar_url}
+                        alt="Owner"
+                        width="20"
+                        height="20"
+                        style={{ borderRadius: "50%", marginRight: "8px" }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    )
                   )}
                   <Link
                     to={
@@ -1028,7 +1062,10 @@ export const TokenDetailPage: React.FC = () => {
                 <div className={styles.property}>
                   <span className={styles.propertyLabel}>TBA Account</span>
                   <div className={styles.propertyValue}>
-                    <Link to={`/own/${tbaInfo.accountAddress}`} className={styles.address}>
+                    <Link
+                      to={`/own/${tbaInfo.accountAddress}`}
+                      className={styles.address}
+                    >
                       {formatAddress(tbaInfo.accountAddress)}
                     </Link>
                     <button
@@ -1143,8 +1180,13 @@ export const TokenDetailPage: React.FC = () => {
                       height="16"
                       style={{ marginRight: "8px" }}
                     />
-                    TBA: <Link to={`/own/${tbaInfo.accountAddress}`} className={styles.tbaLink}>
-                      {tbaInfo.accountAddress.slice(0, 6)}...{tbaInfo.accountAddress.slice(-4)}
+                    TBA:{" "}
+                    <Link
+                      to={`/own/${tbaInfo.accountAddress}`}
+                      className={styles.tbaLink}
+                    >
+                      {tbaInfo.accountAddress.slice(0, 6)}...
+                      {tbaInfo.accountAddress.slice(-4)}
                     </Link>
                     <button
                       onClick={() => copyToClipboard(tbaInfo.accountAddress)}
@@ -1185,10 +1227,10 @@ export const TokenDetailPage: React.FC = () => {
       {/* Owner Member Information */}
       {!isOwnerTBA && (
         <div className={styles.container}>
-          <MemberInfoCard 
+          <MemberInfoCard
             memberInfo={ownerMemberInfo}
             loading={loadingOwnerInfo}
-            address={token?.owner || ''}
+            address={token?.owner || ""}
           />
         </div>
       )}

@@ -187,6 +187,65 @@ export class CacheService {
     });
   }
 
+  // Clear TBA-related cache data specifically
+  clearTBACache(): void {
+    try {
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.includes('nft_cache_') && (
+          key.includes('account_') ||
+          key.includes('tba_') ||
+          key.includes('is_tba_') ||
+          key.includes('deployed_') ||
+          key.includes('balance_') ||
+          key.includes('owner_') ||
+          key.includes('tba_source_') ||
+          key.includes('tba_tokens_')
+        )) {
+          console.log('🗑️ Clearing TBA cache key:', key);
+          localStorage.removeItem(key);
+        }
+      });
+      console.log('✅ TBA cache cleared');
+    } catch (error) {
+      console.warn('TBA cache clear error:', error);
+    }
+  }
+
+  // Debug method to show all cached TBA data
+  debugTBACache(): void {
+    console.group('🔍 TBA Cache Debug');
+    try {
+      const keys = Object.keys(localStorage);
+      const tbaKeys = keys.filter(key => 
+        key.includes('nft_cache_') && (
+          key.includes('account_') ||
+          key.includes('tba_') ||
+          key.includes('is_tba_') ||
+          key.includes('deployed_') ||
+          key.includes('balance_') ||
+          key.includes('owner_') ||
+          key.includes('tba_source_') ||
+          key.includes('tba_tokens_')
+        )
+      );
+      
+      console.log(`Found ${tbaKeys.length} TBA cache keys:`);
+      tbaKeys.forEach(key => {
+        try {
+          const value = localStorage.getItem(key);
+          const parsed = value ? JSON.parse(value) : null;
+          console.log(`📋 ${key}:`, parsed);
+        } catch (e) {
+          console.log(`📋 ${key}: [Parse Error]`, localStorage.getItem(key));
+        }
+      });
+    } catch (error) {
+      console.error('TBA cache debug error:', error);
+    }
+    console.groupEnd();
+  }
+
   private hashString(str: string): string {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -199,3 +258,12 @@ export class CacheService {
 }
 
 export const cacheService = new CacheService();
+
+// デバッグ用: グローバルアクセス可能にする
+if (typeof window !== 'undefined') {
+  (window as any).debugTBACache = () => cacheService.debugTBACache();
+  (window as any).clearTBACache = () => cacheService.clearTBACache();
+  console.log('🔧 TBA Debug tools available:');
+  console.log('  debugTBACache() - Show all TBA cache data');
+  console.log('  clearTBACache() - Clear all TBA cache data');
+}
