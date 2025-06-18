@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { WalletConnect } from "./WalletConnect";
 import { RateLimitNotification } from "./RateLimitNotification";
@@ -10,6 +10,7 @@ import {
   EXTERNAL_LINK_NAME,
   EXTERNAL_LINK_URL,
   CONTRACT_ADDRESS,
+  SITE_TITLE,
 } from "../constants";
 import styles from "./Layout.module.css";
 
@@ -17,6 +18,7 @@ export const Layout: React.FC = () => {
   const { walletState } = useWallet();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const mobileNavRef = useRef<HTMLElement>(null);
 
   // URLから現在のcontractAddressを取得
   const getContractAddressFromPath = () => {
@@ -41,18 +43,77 @@ export const Layout: React.FC = () => {
     return null;
   };
 
-  const currentContractAddress = getContractAddressFromPath();
+  // 現在のコントラクトアドレスを取得・管理
+  const getCurrentContractAddress = () => {
+    const pathAddress = getContractAddressFromPath();
+    
+    if (pathAddress) {
+      // URLにコントラクトアドレスがある場合、localStorageに保存
+      localStorage.setItem('currentContractAddress', pathAddress);
+      return pathAddress;
+    }
+    
+    // URLにない場合、localStorageから取得
+    const stored = localStorage.getItem('currentContractAddress');
+    if (stored) {
+      return stored;
+    }
+    
+    // どちらもない場合は最初のNFTコントラクトアドレスを使用
+    return CONTRACT_ADDRESS;
+  };
+
+  const currentContractAddress = getCurrentContractAddress();
+
+  // URLが変更された時にlocalStorageを更新
+  useEffect(() => {
+    const pathAddress = getContractAddressFromPath();
+    if (pathAddress) {
+      localStorage.setItem('currentContractAddress', pathAddress);
+    }
+  }, [location.pathname]);
+
+  // ハンバーガーメニュー外をクリックしたら閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (mobileNavRef.current && !mobileNavRef.current.contains(event.target as Node)) {
+        // ハンバーガーボタン自体をクリックした場合は除外
+        const menuButton = document.querySelector(`.${styles.menuButton}`);
+        if (menuButton && !menuButton.contains(event.target as Node)) {
+          setIsMenuOpen(false);
+        }
+      }
+    };
+
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
 
   // リンク生成用のヘルパー関数
   const createLink = (basePath: string, extraPath?: string) => {
     // extraPathがnullやundefinedの場合は無効なリンクを避ける
 
+    // Ownページの場合は特別な処理
+    if (basePath === "/own") {
+      if (extraPath) {
+        // ログインしている場合は自分のアドレスのみを使用
+        return `${basePath}/${extraPath}`;
+      } else {
+        // extraPathがない場合はデフォルトコントラクトアドレスを使用
+        return "/own/" + CONTRACT_ADDRESS;
+      }
+    }
+
+    // その他のページ
     if (currentContractAddress && currentContractAddress !== CONTRACT_ADDRESS) {
       return extraPath
         ? `${basePath}/${currentContractAddress}/${extraPath}`
         : `${basePath}/${currentContractAddress}`;
-    } else if (basePath === "/own" && !extraPath) {
-      return "/own/" + CONTRACT_ADDRESS;
     }
     return extraPath ? `${basePath}/${extraPath}` : basePath;
   };
@@ -63,7 +124,7 @@ export const Layout: React.FC = () => {
         <div className={styles.headerContent}>
           <h1 className={styles.title}>
             <Link to="/" className={styles.titleLink}>
-              NFT Mint Store
+              {SITE_TITLE}
             </Link>
           </h1>
           <nav className={styles.nav}>
@@ -73,12 +134,14 @@ export const Layout: React.FC = () => {
             <Link to={createLink("/tokens")} className={styles.navLink}>
               Tokens
             </Link>
-            <Link
-              to={createLink("/own", walletState.address)}
-              className={styles.navLink}
-            >
-              Own
-            </Link>
+            {walletState.isConnected && (
+              <Link
+                to={createLink("/own", walletState.address)}
+                className={styles.navLink}
+              >
+                Own
+              </Link>
+            )}
             <Link to={createLink("/mint")} className={styles.navLink}>
               Mint
             </Link>
@@ -106,7 +169,7 @@ export const Layout: React.FC = () => {
               <span className={styles.hamburger}></span>
             </button>
           </div>
-          <nav className={`${styles.mobileNav} ${isMenuOpen ? styles.mobileNavOpen : ''}`}>
+          <nav ref={mobileNavRef} className={`${styles.mobileNav} ${isMenuOpen ? styles.mobileNavOpen : ''}`}>
             <Link 
               to={createLink("/collection")} 
               className={styles.navLink}
@@ -121,13 +184,15 @@ export const Layout: React.FC = () => {
             >
               Tokens
             </Link>
-            <Link
-              to={createLink("/own", walletState.address)}
-              className={styles.navLink}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Own
-            </Link>
+            {walletState.isConnected && (
+              <Link
+                to={createLink("/own", walletState.address)}
+                className={styles.navLink}
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Own
+              </Link>
+            )}
             <Link 
               to={createLink("/mint")} 
               className={styles.navLink}
@@ -153,6 +218,7 @@ export const Layout: React.FC = () => {
         </div>
       </header>
       <main className={styles.main}>
+        <RateLimitNotification />
         <Outlet />
       </main>
       <RateLimitNotification />

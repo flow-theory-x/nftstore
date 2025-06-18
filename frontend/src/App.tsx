@@ -21,63 +21,65 @@ const AppContent: React.FC = () => {
   }, [setRateLimit, incrementRetry]);
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/collection" replace />} />
-          <Route path="tokens" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <TokensPage />
-            </Suspense>
-          } />
-          <Route path="tokens/:contractAddress" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <TokensPage />
-            </Suspense>
-          } />
-          <Route path="token/:tokenId" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <TokenDetailPage />
-            </Suspense>
-          } />
-          <Route path="token/:contractAddress/:tokenId" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <TokenDetailPage />
-            </Suspense>
-          } />
-          <Route path="own/:address" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <OwnedTokensPage />
-            </Suspense>
-          } />
-          <Route path="own/:contractAddress/:address" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <OwnedTokensPage />
-            </Suspense>
-          } />
-          <Route path="mint" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <MintPage />
-            </Suspense>
-          } />
-          <Route path="mint/:contractAddress" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <MintPage />
-            </Suspense>
-          } />
-          <Route path="collection" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <CollectionPage />
-            </Suspense>
-          } />
-          <Route path="collection/:contractAddress" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <CollectionPage />
-            </Suspense>
-          } />
-        </Route>
-      </Routes>
-    </Router>
+    <RateLimitProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Navigate to="/collection" replace />} />
+            <Route path="tokens" element={
+              <Suspense fallback={<div>Loading...</div>}>
+                <TokensPage />
+              </Suspense>
+            } />
+            <Route path="tokens/:contractAddress" element={
+              <Suspense fallback={<div>Loading...</div>}>
+                <TokensPage />
+              </Suspense>
+            } />
+            <Route path="token/:tokenId" element={
+              <Suspense fallback={<div>Loading...</div>}>
+                <TokenDetailPage />
+              </Suspense>
+            } />
+            <Route path="token/:contractAddress/:tokenId" element={
+              <Suspense fallback={<div>Loading...</div>}>
+                <TokenDetailPage />
+              </Suspense>
+            } />
+            <Route path="own/:address" element={
+              <Suspense fallback={<div>Loading...</div>}>
+                <OwnedTokensPage />
+              </Suspense>
+            } />
+            <Route path="own/:contractAddress/:address" element={
+              <Suspense fallback={<div>Loading...</div>}>
+                <OwnedTokensPage />
+              </Suspense>
+            } />
+            <Route path="mint" element={
+              <Suspense fallback={<div>Loading...</div>}>
+                <MintPage />
+              </Suspense>
+            } />
+            <Route path="mint/:contractAddress" element={
+              <Suspense fallback={<div>Loading...</div>}>
+                <MintPage />
+              </Suspense>
+            } />
+            <Route path="collection" element={
+              <Suspense fallback={<div>Loading...</div>}>
+                <CollectionPage />
+              </Suspense>
+            } />
+            <Route path="collection/:contractAddress" element={
+              <Suspense fallback={<div>Loading...</div>}>
+                <CollectionPage />
+              </Suspense>
+            } />
+          </Route>
+        </Routes>
+      </Router>
+    </RateLimitProvider>
   );
 };
 
