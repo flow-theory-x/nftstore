@@ -356,6 +356,32 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               </button>
             </div>
           </div>
+
+          {/* TBA Account display */}
+          {hasTBA && tbaAccountAddress && (
+            <div className={styles.detail}>
+              <span className={styles.label}>TBA Account:</span>
+              <div className={styles.ownerContainer}>
+                <img
+                  src={backpackIcon}
+                  alt="TBA"
+                  width="16"
+                  height="16"
+                  style={{ marginRight: "6px", verticalAlign: "middle" }}
+                />
+                <Link to={`/own/${tbaAccountAddress}`}>
+                  {formatAddress(tbaAccountAddress)}
+                </Link>
+                <button
+                  onClick={() => copyToClipboard(tbaAccountAddress)}
+                  className={styles.copyButton}
+                  title="Copy TBA address"
+                >
+                  <img src={copyIcon} alt="Copy" width="14" height="14" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className={styles.actions}>
