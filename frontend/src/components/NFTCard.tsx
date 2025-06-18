@@ -40,6 +40,10 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const [ownerMemberInfo, setOwnerMemberInfo] = useState<MemberInfo | null>(
     null
   );
+  const [creatorAddress, setCreatorAddress] = useState<string | null>(null);
+  const [creatorMemberInfo, setCreatorMemberInfo] = useState<MemberInfo | null>(
+    null
+  );
   const [hasTBA, setHasTBA] = useState(false);
   const [tbaAccountAddress, setTbaAccountAddress] = useState<string | null>(null);
 
@@ -103,6 +107,42 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     checkTBA();
   }, [token.contractAddress, token.tokenId]);
 
+  // Creator情報を取得
+  useEffect(() => {
+    const fetchCreator = async () => {
+      try {
+        const contractService = new NftContractService(token.contractAddress);
+        const creator = await contractService.getTokenCreator(token.tokenId);
+        setCreatorAddress(creator);
+      } catch (err) {
+        console.error("Failed to get token creator:", err);
+        setCreatorAddress(null);
+      }
+    };
+
+    fetchCreator();
+  }, [token.contractAddress, token.tokenId]);
+
+  // Creatorのメンバー情報を取得
+  useEffect(() => {
+    const fetchCreatorMemberInfo = async () => {
+      if (!creatorAddress) {
+        setCreatorMemberInfo(null);
+        return;
+      }
+
+      try {
+        const memberInfo = await memberService.getMemberInfo(creatorAddress);
+        setCreatorMemberInfo(memberInfo);
+      } catch (err) {
+        console.error("Failed to fetch creator member info:", err);
+        setCreatorMemberInfo(null);
+      }
+    };
+
+    fetchCreatorMemberInfo();
+  }, [creatorAddress]);
+
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
@@ -122,6 +162,16 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
     if (ownerMemberInfo?.DiscordId || ownerMemberInfo?.discord_id) {
       const discordId = ownerMemberInfo.DiscordId || ownerMemberInfo.discord_id;
+      await copyToClipboard(discordId);
+    }
+  };
+
+  const handleCreatorIconClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (creatorMemberInfo?.DiscordId || creatorMemberInfo?.discord_id) {
+      const discordId = creatorMemberInfo.DiscordId || creatorMemberInfo.discord_id;
       await copyToClipboard(discordId);
     }
   };
@@ -274,6 +324,13 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             <div className={styles.noImage}>No Image</div>
           )}
 
+          {/* SBT Badge */}
+          {token.isSbt && (
+            <div className={styles.sbtBadge} title="Soul Bound Token">
+              SBT
+            </div>
+          )}
+
           {/* TBA Badge */}
           {hasTBA && tbaAccountAddress && (
             <div 
@@ -357,6 +414,50 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             </div>
           </div>
 
+          {/* Creator display */}
+          {creatorAddress && (
+            <div className={styles.detail}>
+              <span className={styles.label}>
+                Creator:
+                {creatorMemberInfo &&
+                  (creatorMemberInfo.Icon || creatorMemberInfo.avatar_url) && (
+                    <img
+                      src={creatorMemberInfo.Icon || creatorMemberInfo.avatar_url}
+                      alt="Creator"
+                      width="20"
+                      height="20"
+                      style={{
+                        borderRadius: "50%",
+                        marginRight: "6px",
+                        cursor: "pointer",
+                      }}
+                      title={`Copy Discord ID: ${
+                        creatorMemberInfo.DiscordId ||
+                        creatorMemberInfo.discord_id ||
+                        "Not available"
+                      }`}
+                      onClick={handleCreatorIconClick}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  )}
+              </span>
+              <div className={styles.ownerContainer}>
+                <Link to={`/own/${creatorAddress}`}>
+                  {formatAddress(creatorAddress)}
+                </Link>
+                <button
+                  onClick={() => copyToClipboard(creatorAddress)}
+                  className={styles.copyButton}
+                  title="Copy full address"
+                >
+                  <img src={copyIcon} alt="Copy" width="14" height="14" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* TBA Account display */}
           {hasTBA && tbaAccountAddress && (
             <div className={styles.detail}>
@@ -397,22 +498,26 @@ export const NFTCard: React.FC<NFTCardProps> = ({
 
           {isOwner && (
             <>
-              <button
-                onClick={() => setShowTransferModal(true)}
-                disabled={transferring}
-                className={styles.transferButton}
-                title={transferring ? "Transferring..." : "Send NFT"}
-              >
-                <img src={sendIcon} alt="Send" width="16" height="16" />
-              </button>
-              <button
-                onClick={handleBurn}
-                disabled={burning}
-                className={styles.burnButton}
-                title={burning ? "Burning..." : "Burn NFT"}
-              >
-                <img src={fireIcon} alt="Burn" width="16" height="16" />
-              </button>
+              {!token.isSbt && (
+                <button
+                  onClick={() => setShowTransferModal(true)}
+                  disabled={transferring}
+                  className={styles.transferButton}
+                  title={transferring ? "Transferring..." : "Send NFT"}
+                >
+                  <img src={sendIcon} alt="Send" width="16" height="16" />
+                </button>
+              )}
+              {!hasTBA && (
+                <button
+                  onClick={handleBurn}
+                  disabled={burning}
+                  className={styles.burnButton}
+                  title={burning ? "Burning..." : "Burn NFT"}
+                >
+                  <img src={fireIcon} alt="Burn" width="16" height="16" />
+                </button>
+              )}
             </>
           )}
         </div>

@@ -3,6 +3,7 @@ export interface NFTToken {
   owner: string;
   tokenURI: string;
   contractAddress: string;
+  isSbt?: boolean;
   metadata?: {
     name?: string;
     description?: string;

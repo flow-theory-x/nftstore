@@ -5,10 +5,11 @@ import { Spinner } from "../components/Spinner";
 import { NftContractService } from "../utils/nftContract";
 import type { NFTToken } from "../types";
 import { useWallet } from "../hooks/useWallet";
-import { TBA_TARGET_NFT_CA_ADDRESSES, TBA_TARGET_SBT_CA_ADDRESSES } from "../constants";
+import { CONTRACT_ADDRESS, isTBAEnabled } from "../constants";
 import { memberService } from "../utils/memberService";
 import type { MemberInfo } from "../types";
 import { MemberInfoCard } from "../components/MemberInfoCard";
+import { TbaService } from "../utils/tbaService";
 import styles from "./OwnedTokensPage.module.css";
 
 export const OwnedTokensPage: React.FC = () => {
@@ -33,6 +34,12 @@ export const OwnedTokensPage: React.FC = () => {
   const [memberInfo, setMemberInfo] = useState<MemberInfo | null>(null);
   const [memberLoading, setMemberLoading] = useState(false);
   const [memberInfoFetched, setMemberInfoFetched] = useState(false);
+  
+  // TBA-related state
+  const [isTbaAccount, setIsTbaAccount] = useState(false);
+  const [tbaSourceNFT, setTbaSourceNFT] = useState<{contractAddress: string, tokenId: string} | null>(null);
+  const [tbaSourceNFTDetail, setTbaSourceNFTDetail] = useState<NFTToken | null>(null);
+  const [tbaCheckLoading, setTbaCheckLoading] = useState(false);
 
   const handleRefresh = () => {
     // ページをリロードして最新データを取得
@@ -42,7 +49,61 @@ export const OwnedTokensPage: React.FC = () => {
   const isOwnAddress =
     walletState.address?.toLowerCase() === address?.toLowerCase();
 
-  // First, fetch member info
+  // Check if address is TBA and get source NFT
+  useEffect(() => {
+    const checkTBA = async () => {
+      if (!address || !isTBAEnabled()) {
+        setMemberInfoFetched(true);
+        return;
+      }
+
+      try {
+        setTbaCheckLoading(true);
+        const tbaService = new TbaService();
+        
+        console.log(`🔍 Checking if ${address} is TBA account...`);
+        const isTBA = await tbaService.isTBAAccount(address);
+        setIsTbaAccount(isTBA);
+        
+        if (isTBA) {
+          console.log(`🎯 Address is TBA, finding source NFT...`);
+          const sourceToken = await tbaService.findTBASourceToken(address);
+          setTbaSourceNFT(sourceToken);
+          
+          if (sourceToken) {
+            console.log(`📋 Found source NFT: ${sourceToken.contractAddress}#${sourceToken.tokenId}`);
+            // Fetch the source NFT details
+            try {
+              const contractService = new NftContractService(sourceToken.contractAddress);
+              const owner = await contractService.getOwnerOf(sourceToken.tokenId);
+              const tokenURI = await contractService.getTokenURI(sourceToken.tokenId);
+              
+              const nftDetail: NFTToken = {
+                tokenId: sourceToken.tokenId,
+                owner,
+                tokenURI,
+                contractAddress: sourceToken.contractAddress,
+              };
+              setTbaSourceNFTDetail(nftDetail);
+            } catch (err) {
+              console.error('Failed to fetch source NFT details:', err);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check TBA status:', error);
+        setIsTbaAccount(false);
+        setTbaSourceNFT(null);
+        setTbaSourceNFTDetail(null);
+      } finally {
+        setTbaCheckLoading(false);
+      }
+    };
+
+    checkTBA();
+  }, [address]);
+
+  // Then, fetch member info
   useEffect(() => {
     const fetchMemberInfo = async () => {
       if (!address) {
@@ -80,7 +141,7 @@ export const OwnedTokensPage: React.FC = () => {
     // Initialize contract data with loading state
     const contractsToFetch = contractAddress
       ? [contractAddress]
-      : [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
+      : [CONTRACT_ADDRESS];
 
     const initialContractsData = contractsToFetch.map((contractAddr) => ({
       contractAddress: contractAddr,
@@ -103,7 +164,7 @@ export const OwnedTokensPage: React.FC = () => {
 
       const contractsToFetch = contractAddress
         ? [contractAddress]
-        : [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
+        : [CONTRACT_ADDRESS];
 
       // Fetch data for each contract
       contractsToFetch.forEach(async (contractAddr, index) => {
@@ -237,6 +298,9 @@ export const OwnedTokensPage: React.FC = () => {
           memberInfo={memberInfo}
           loading={memberLoading}
           address={address || ""}
+          isTbaAccount={isTbaAccount}
+          tbaSourceNFT={tbaSourceNFTDetail}
+          tbaCheckLoading={tbaCheckLoading}
         />
         
         <div
@@ -284,22 +348,6 @@ export const OwnedTokensPage: React.FC = () => {
             ? "My Tokens"
             : `Tokens owned by ${formatAddress(address || "")}`}
         </h1>
-
-        <div className={styles.addressInfo}>
-          <span className={styles.addressLabel}>Address:</span>
-          <span className={styles.addressValue}>{address}</span>
-        </div>
-
-        <div className={styles.stats}>
-          <span className={styles.count}>
-            {totalTokens} NFT/SBT{totalTokens !== 1 ? "s" : ""} found across{" "}
-            {contractsData.length} contract
-            {contractsData.length !== 1 ? "s" : ""}
-          </span>
-          <button onClick={handleRefresh} className={styles.refreshButton}>
-            Refresh
-          </button>
-        </div>
       </div>
 
       {/* メンバー情報表示 */}
@@ -307,7 +355,21 @@ export const OwnedTokensPage: React.FC = () => {
         memberInfo={memberInfo}
         loading={memberLoading}
         address={address || ""}
+        isTbaAccount={isTbaAccount}
+        tbaSourceNFT={tbaSourceNFTDetail}
+        tbaCheckLoading={tbaCheckLoading}
       />
+
+      <div className={styles.stats}>
+        <span className={styles.count}>
+          {totalTokens} NFT/SBT{totalTokens !== 1 ? "s" : ""} found across{" "}
+          {contractsData.length} contract
+          {contractsData.length !== 1 ? "s" : ""}
+        </span>
+        <button onClick={handleRefresh} className={styles.refreshButton}>
+          Refresh
+        </button>
+      </div>
 
       {contractsData.length === 0 || contractsData.filter(c => c.loading || c.tokens.length > 0 || c.error).length === 0 ? (
         <div className={styles.empty}>

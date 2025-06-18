@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESS, RPC_URL, DEAD_ADDRESS } from "../constants";
 import type { NFTToken, ContractInfo } from "../types";
-import contractAbi from "../../config/nft_abi.json";
+import contractAbi from "../../config/donaterble_nft_abi.json";
 import { cacheService } from "./cache";
 import { rateLimiter } from "./rateLimiter";
 
@@ -22,7 +22,7 @@ export class NftContractService {
 
   async getMintFee(): Promise<string> {
     try {
-      const fee = await (this.contract as any).getMintFee();
+      const fee = await (this.contract as any)._mintFee();
       return ethers.formatEther(fee);
     } catch (error) {
       console.error("Failed to get mint fee:", error);
@@ -34,7 +34,9 @@ export class NftContractService {
     to: string,
     metaUrl: string,
     signer: ethers.JsonRpcSigner,
-    customFee?: string
+    customFee?: string,
+    feeRate: number = 0,
+    sbtFlag: boolean = false
   ): Promise<ethers.ContractTransactionResponse> {
     try {
       const contractWithSigner = this.contract.connect(signer);
@@ -46,7 +48,7 @@ export class NftContractService {
         mintFee = await this.getMintFee();
       }
 
-      const tx = await (contractWithSigner as any).mint(to, metaUrl, {
+      const tx = await (contractWithSigner as any).mint(to, metaUrl, feeRate, sbtFlag, {
         value: ethers.parseEther(mintFee),
       });
 
@@ -59,21 +61,11 @@ export class NftContractService {
 
   async getTotalSupply(): Promise<number> {
     try {
-      const cached = cacheService.getContractData<number>(this.contractAddress, 'totalSupply');
-      if (cached !== null && cached !== undefined) {
-        console.log("📋 Cache HIT: getTotalSupply", cached);
-        return cached;
-      }
-
       return rateLimiter.executeWithRetry(async () => {
-        console.log("🔗 Blockchain CALL: getTotalSupply");
+        console.log("🔗 Blockchain CALL: getTotalSupply (no cache)");
         const supply = await (this.contract as any).totalSupply();
         const result = Number(supply);
-        
-        // 総供給量は比較的変わりにくいので30分キャッシュ（新しいミントを考慮）
-        cacheService.setContractData(this.contractAddress, 'totalSupply', result, 30 * 60 * 1000);
-        console.log("💾 Cache SET: getTotalSupply", result);
-        
+        console.log("📊 getTotalSupply result:", result);
         return result;
       });
     } catch (error) {
@@ -211,12 +203,14 @@ export class NftContractService {
         }
         
         const tokenURI = await this.getTokenURI(tokenId);
+        const isSbt = await this.getSbtFlag(tokenId);
 
         tokens.push({
           tokenId,
           owner,
           tokenURI,
           contractAddress: this.contractAddress,
+          isSbt,
         });
       }
 
@@ -313,12 +307,14 @@ export class NftContractService {
         
         onProgress?.('Getting metadata', tokenId);
         const tokenURI = await this.getTokenURI(tokenId);
+        const isSbt = await this.getSbtFlag(tokenId);
 
         const token: NFTToken = {
           tokenId,
           owner,
           tokenURI,
           contractAddress: this.contractAddress,
+          isSbt,
         };
         tokens.push(token);
         
@@ -424,12 +420,14 @@ export class NftContractService {
         }
         
         const tokenURI = await this.getTokenURI(tokenId);
+        const isSbt = await this.getSbtFlag(tokenId);
 
         tokens.push({
           tokenId,
           owner,
           tokenURI,
           contractAddress: this.contractAddress,
+          isSbt,
         });
       }
 
@@ -479,12 +477,14 @@ export class NftContractService {
         
           onProgress?.('Getting metadata', tokenId);
           const tokenURI = await this.getTokenURI(tokenId);
+          const isSbt = await this.getSbtFlag(tokenId);
 
           tokens.push({
             tokenId,
             owner,
             tokenURI,
             contractAddress: this.contractAddress,
+            isSbt,
           });
         } catch (error) {
           console.error(`Failed to get token at index ${i} for owner ${owner}:`, error);
@@ -516,12 +516,14 @@ export class NftContractService {
         try {
           const tokenId = await this.getTokenOfOwnerByIndex(owner, i);
           const tokenURI = await this.getTokenURI(tokenId);
+          const isSbt = await this.getSbtFlag(tokenId);
 
           tokens.push({
             tokenId,
             owner,
             tokenURI,
             contractAddress: this.contractAddress,
+            isSbt,
           });
         } catch (error) {
           console.error(`Failed to get token at index ${i} for owner ${owner}:`, error);
@@ -595,18 +597,233 @@ export class NftContractService {
     }
   }
 
+  async safeTransferFromWithDonation(
+    tokenId: string,
+    to: string,
+    signer: ethers.JsonRpcSigner,
+    donationAmount: string
+  ): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const contractWithSigner = this.contract.connect(signer);
+      const signerAddress = await signer.getAddress();
+      const tokenOwner = await this.getOwnerOf(tokenId);
+
+      if (signerAddress.toLowerCase() !== tokenOwner.toLowerCase()) {
+        throw new Error("Only the token owner can transfer this NFT");
+      }
+
+      if (!ethers.isAddress(to)) {
+        throw new Error("Invalid recipient address");
+      }
+
+      const tx = await (contractWithSigner as any).safeTransferFromWithDonation(
+        signerAddress,
+        to,
+        tokenId,
+        {
+          value: ethers.parseEther(donationAmount)
+        }
+      );
+      return tx;
+    } catch (error) {
+      console.error("Failed to transfer NFT with donation:", error);
+      throw error;
+    }
+  }
+
+  async transferFromWithDonation(
+    tokenId: string,
+    to: string,
+    signer: ethers.JsonRpcSigner,
+    donationAmount: string
+  ): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const contractWithSigner = this.contract.connect(signer);
+      const signerAddress = await signer.getAddress();
+      const tokenOwner = await this.getOwnerOf(tokenId);
+
+      if (signerAddress.toLowerCase() !== tokenOwner.toLowerCase()) {
+        throw new Error("Only the token owner can transfer this NFT");
+      }
+
+      if (!ethers.isAddress(to)) {
+        throw new Error("Invalid recipient address");
+      }
+
+      const tx = await (contractWithSigner as any).transferFromWithDonation(
+        signerAddress,
+        to,
+        tokenId,
+        {
+          value: ethers.parseEther(donationAmount)
+        }
+      );
+      return tx;
+    } catch (error) {
+      console.error("Failed to transfer NFT with donation:", error);
+      throw error;
+    }
+  }
+
+  async transferFromWithCashback(
+    tokenId: string,
+    to: string,
+    signer: ethers.JsonRpcSigner,
+    cashbackAmount: string
+  ): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const contractWithSigner = this.contract.connect(signer);
+      const signerAddress = await signer.getAddress();
+      const tokenOwner = await this.getOwnerOf(tokenId);
+
+      if (signerAddress.toLowerCase() !== tokenOwner.toLowerCase()) {
+        throw new Error("Only the token owner can transfer this NFT");
+      }
+
+      if (!ethers.isAddress(to)) {
+        throw new Error("Invalid recipient address");
+      }
+
+      const tx = await (contractWithSigner as any).transferFromWithCashback(
+        signerAddress,
+        to,
+        tokenId,
+        {
+          value: ethers.parseEther(cashbackAmount)
+        }
+      );
+      return tx;
+    } catch (error) {
+      console.error("Failed to transfer NFT with cashback:", error);
+      throw error;
+    }
+  }
+
+  async getCreators(): Promise<string[]> {
+    try {
+      const creators = await (this.contract as any).getCreators();
+      return creators;
+    } catch (error) {
+      console.error("Failed to get creators:", error);
+      throw error;
+    }
+  }
+
+  async getCreatorTokens(creator: string): Promise<string[]> {
+    try {
+      const tokenIds = await (this.contract as any).getCreatorTokens(creator);
+      return tokenIds.map((id: any) => id.toString());
+    } catch (error) {
+      console.error("Failed to get creator tokens:", error);
+      throw error;
+    }
+  }
+
+  async getCreatorName(creator: string): Promise<string> {
+    try {
+      const name = await (this.contract as any).getCreatorName(creator);
+      return name;
+    } catch (error) {
+      console.error("Failed to get creator name:", error);
+      throw error;
+    }
+  }
+
+  async setCreatorName(
+    name: string,
+    signer: ethers.JsonRpcSigner
+  ): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const contractWithSigner = this.contract.connect(signer);
+      const tx = await (contractWithSigner as any).setCreatorName(name);
+      return tx;
+    } catch (error) {
+      console.error("Failed to set creator name:", error);
+      throw error;
+    }
+  }
+
+  async getTokenCreator(tokenId: string): Promise<string> {
+    try {
+      const creator = await (this.contract as any).getTokenCreator(tokenId);
+      return creator;
+    } catch (error) {
+      console.error("Failed to get token creator:", error);
+      throw error;
+    }
+  }
+
+  async royaltyInfo(tokenId: string, salePrice: string): Promise<{ receiver: string; royaltyAmount: string }> {
+    try {
+      const [receiver, royaltyAmount] = await (this.contract as any).royaltyInfo(
+        tokenId,
+        ethers.parseEther(salePrice)
+      );
+      return {
+        receiver,
+        royaltyAmount: ethers.formatEther(royaltyAmount)
+      };
+    } catch (error) {
+      console.error("Failed to get royalty info:", error);
+      throw error;
+    }
+  }
+
+  async getMaxFeeRate(): Promise<number> {
+    try {
+      const maxFeeRate = await (this.contract as any)._maxFeeRate();
+      return Number(maxFeeRate);
+    } catch (error) {
+      console.error("Failed to get max fee rate:", error);
+      throw error;
+    }
+  }
+
+  async getSbtFlag(tokenId: string): Promise<boolean> {
+    try {
+      const sbtFlag = await (this.contract as any)._sbtFlag(tokenId);
+      return Boolean(sbtFlag);
+    } catch (error) {
+      console.error("Failed to get SBT flag:", error);
+      throw error;
+    }
+  }
+
   async getContractInfo(): Promise<ContractInfo> {
     try {
-      const [creator, feeRate, creatorOnly] = await (
-        this.contract as any
-      ).getInfo();
+      // The new contract doesn't have getInfo, so we'll use individual getters
+      const owner = await (this.contract as any)._owner();
+      const maxFeeRate = await (this.contract as any)._maxFeeRate();
+      
       return {
-        creator,
-        feeRate: feeRate.toString(),
-        creatorOnly,
+        creator: owner,
+        feeRate: maxFeeRate.toString(),
+        creatorOnly: false, // This field doesn't exist in the new contract
       };
     } catch (error) {
       console.error("Failed to get contract info:", error);
+      throw error;
+    }
+  }
+
+  async config(
+    maxFeeRate: number,
+    mintFee: string,
+    newName: string,
+    newSymbol: string,
+    signer: ethers.JsonRpcSigner
+  ): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const contractWithSigner = this.contract.connect(signer);
+      const tx = await (contractWithSigner as any).config(
+        maxFeeRate,
+        ethers.parseEther(mintFee),
+        newName,
+        newSymbol
+      );
+      return tx;
+    } catch (error) {
+      console.error("Failed to configure contract:", error);
       throw error;
     }
   }

@@ -37,6 +37,10 @@ export const MintPage: React.FC = () => {
   const [feeError, setFeeError] = useState<boolean>(false);
   const [customFee, setCustomFee] = useState<string>("0");
   const [recipientAddress, setRecipientAddress] = useState<string>("");
+  const [feeRate, setFeeRate] = useState<number>(0);
+  const [sbtFlag, setSbtFlag] = useState<boolean>(false);
+  const [maxFeeRate, setMaxFeeRate] = useState<number>(10000);
+  const [fetchingMaxFeeRate, setFetchingMaxFeeRate] = useState(true);
 
   const isWrongNetwork =
     walletState.chainId && walletState.chainId !== CHAIN_ID;
@@ -58,17 +62,21 @@ export const MintPage: React.FC = () => {
     metadataPreview !== null &&
     !previewError &&
     recipientAddress.trim() !== "" &&
-    (!feeError || (feeError && parseFloat(customFee) >= 0));
+    (!feeError || (feeError && parseFloat(customFee) >= 0)) &&
+    (maxFeeRate === 0 || (feeRate >= 0 && feeRate <= maxFeeRate)) &&
+    !fetchingMaxFeeRate;
 
   useEffect(() => {
     const fetchContractData = async () => {
       try {
         setFetchingFee(true);
         setFetchingName(true);
+        setFetchingMaxFeeRate(true);
         setFeeError(false);
         const contractService = new NftContractService(contractAddress);
 
         const namePromise = contractService.getName();
+        const maxFeeRatePromise = contractService.getMaxFeeRate();
         let feePromise;
 
         try {
@@ -83,14 +91,21 @@ export const MintPage: React.FC = () => {
           setMintFee("0");
         }
 
-        const name = await namePromise;
+        const [name, maxFeeRateValue] = await Promise.all([namePromise, maxFeeRatePromise]);
         setContractName(name);
+        setMaxFeeRate(maxFeeRateValue);
+        
+        // maxFeeRateが0の場合はfeeRateも0にリセット
+        if (maxFeeRateValue === 0) {
+          setFeeRate(0);
+        }
       } catch (err: any) {
         console.error("Failed to fetch contract data:", err);
         setError("Failed to fetch contract data");
       } finally {
         setFetchingFee(false);
         setFetchingName(false);
+        setFetchingMaxFeeRate(false);
       }
     };
 
@@ -179,7 +194,9 @@ export const MintPage: React.FC = () => {
         recipientAddress.trim(),
         metaUrl.trim(),
         signer,
-        currentFee
+        currentFee,
+        feeRate,
+        sbtFlag
       );
 
       setSuccess(`Transaction submitted! Hash: ${tx.hash}`);
@@ -194,6 +211,8 @@ export const MintPage: React.FC = () => {
       // Clear form
       setMetaUrl("");
       setRecipientAddress("");
+      setFeeRate(0);
+      setSbtFlag(false);
 
       // Navigate to owned tokens after successful mint
       setTimeout(() => {
@@ -371,6 +390,50 @@ export const MintPage: React.FC = () => {
               />
               <div className={styles.hint}>
                 Enter the URL to your NFT metadata JSON file
+              </div>
+            </div>
+
+            {!fetchingMaxFeeRate && maxFeeRate > 0 && (
+              <div className={styles.formGroup}>
+                <label htmlFor="feeRate" className={styles.label}>
+                  Royalty Fee Rate (basis points)
+                  <span className={styles.maxInfo}> (Max: {maxFeeRate})</span>
+                </label>
+                <input
+                  type="number"
+                  id="feeRate"
+                  value={feeRate}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    setFeeRate(Math.min(value, maxFeeRate));
+                  }}
+                  placeholder="0"
+                  min="0"
+                  max={maxFeeRate}
+                  className={styles.input}
+                />
+                <div className={styles.hint}>
+                  Enter the royalty fee rate in basis points (e.g., 250 = 2.5%). 
+                  Maximum allowed: {maxFeeRate} ({(maxFeeRate / 100).toFixed(1)}%)
+                </div>
+              </div>
+            )}
+
+            <div className={styles.formGroup}>
+              <div className={styles.checkboxGroup}>
+                <input
+                  type="checkbox"
+                  id="sbtFlag"
+                  checked={sbtFlag}
+                  onChange={(e) => setSbtFlag(e.target.checked)}
+                  className={styles.checkbox}
+                />
+                <label htmlFor="sbtFlag" className={styles.checkboxLabel}>
+                  Soul Bound Token (SBT)
+                </label>
+              </div>
+              <div className={styles.hint}>
+                Check this to make the token non-transferable (Soul Bound)
               </div>
             </div>
 

@@ -7,8 +7,6 @@ import {
   CONTRACT_ADDRESS,
   OPENSEA_BASE_URL,
   MODEL_VIEWER_BASE_URL,
-  TBA_TARGET_NFT_CA_ADDRESSES,
-  TBA_TARGET_SBT_CA_ADDRESSES,
   isTBAEnabled,
   isTBATargetContract,
 } from "../constants";
@@ -59,6 +57,8 @@ export const TokenDetailPage: React.FC = () => {
     };
   }>({});
   const [loadingTbaTokens, setLoadingTbaTokens] = useState(false);
+  const [creatorAddress, setCreatorAddress] = useState<string | null>(null);
+  const [creatorLoading, setCreatorLoading] = useState(true);
 
   const currentContractAddress = contractAddress || CONTRACT_ADDRESS;
 
@@ -81,11 +81,21 @@ export const TokenDetailPage: React.FC = () => {
         const owner = await contractService.getOwnerOf(tokenId);
         const tokenURI = await contractService.getTokenURI(tokenId);
 
+        // Creator情報とSBTフラグを並行取得
+        const [creator, isSbt] = await Promise.all([
+          contractService.getTokenCreator(tokenId).catch(() => null),
+          contractService.getSbtFlag(tokenId).catch(() => false),
+        ]);
+
+        setCreatorAddress(creator);
+        setCreatorLoading(false);
+
         const tokenData: NFTToken = {
           tokenId,
           owner,
           tokenURI,
           contractAddress: currentContractAddress,
+          isSbt,
         };
 
         setToken(tokenData);
@@ -110,7 +120,6 @@ export const TokenDetailPage: React.FC = () => {
 
     fetchTokenDetail();
   }, [contractAddress, tokenId, currentContractAddress]);
-
 
   // TBA情報を取得（TBA機能が有効で、対象コントラクトの場合のみ）
   useEffect(() => {
@@ -159,10 +168,7 @@ export const TokenDetailPage: React.FC = () => {
       }
 
       // NFTとSBTコントラクトを結合
-      const allTargetContracts = [
-        ...TBA_TARGET_NFT_CA_ADDRESSES,
-        ...TBA_TARGET_SBT_CA_ADDRESSES,
-      ];
+      const allTargetContracts = [CONTRACT_ADDRESS];
 
       if (allTargetContracts.length === 0) {
         console.warn("No TBA target contract addresses configured");
@@ -176,12 +182,7 @@ export const TokenDetailPage: React.FC = () => {
         console.log(
           `🔍 Searching for NFTs owned by TBA: ${tbaInfo.accountAddress}`
         );
-        console.log(
-          `📋 NFT Target contracts: ${TBA_TARGET_NFT_CA_ADDRESSES.join(", ")}`
-        );
-        console.log(
-          `📋 SBT Target contracts: ${TBA_TARGET_SBT_CA_ADDRESSES.join(", ")}`
-        );
+        console.log(`📋 Target contract: ${CONTRACT_ADDRESS}`);
 
         // 各コントラクトに対して並行処理
         const contractPromises = allTargetContracts.map(
@@ -602,6 +603,19 @@ export const TokenDetailPage: React.FC = () => {
       return;
     }
 
+    const confirmed = window.confirm(
+      `Are you sure you want to create a TBA (Token Bound Account) for NFT #${token.tokenId}?\n\n` +
+      `What TBA does:\n` +
+      `• Gives this NFT its own wallet functionality\n` +
+      `• Allows the NFT to own other tokens and assets\n` +
+      `• Enables the NFT to interact with smart contracts\n\n` +
+      `⚠️ Important: Once TBA is created, this NFT can NO LONGER be burned.\n` +
+      `This is a permanent change that cannot be undone.\n\n` +
+      `Do you want to proceed?`
+    );
+
+    if (!confirmed) return;
+
     try {
       setCreatingTBA(true);
       const tbaService = new TbaService();
@@ -763,6 +777,7 @@ export const TokenDetailPage: React.FC = () => {
         </Link>
         <h1 className={styles.title}>
           {metadata?.name || `Token #${token.tokenId}`}
+          {token.isSbt && <span className={styles.sbtBadge}>SBT</span>}
         </h1>
       </div>
 
@@ -962,6 +977,39 @@ export const TokenDetailPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Creator information */}
+              {creatorLoading ? (
+                <div className={styles.property}>
+                  <span className={styles.propertyLabel}>Creator</span>
+                  <div className={styles.propertyValue}>
+                    <span className={styles.loading}>Loading...</span>
+                  </div>
+                </div>
+              ) : creatorAddress ? (
+                <div className={styles.property}>
+                  <span className={styles.propertyLabel}>Creator</span>
+                  <div className={styles.propertyValue}>
+                    <Link
+                      to={
+                        currentContractAddress !== CONTRACT_ADDRESS
+                          ? `/own/${currentContractAddress}/${creatorAddress}`
+                          : `/own/${creatorAddress}`
+                      }
+                      className={styles.ownerLink}
+                    >
+                      {formatAddress(creatorAddress)}
+                    </Link>
+                    <button
+                      onClick={() => copyToClipboard(creatorAddress)}
+                      className={styles.copyButton}
+                      title="Copy Creator Address"
+                    >
+                      <img src={copyIcon} alt="Copy" width="14" height="14" />
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               {token.tokenURI && (
                 <div className={styles.property}>
                   <span className={styles.propertyLabel}>Token URI</span>
@@ -1064,9 +1112,7 @@ export const TokenDetailPage: React.FC = () => {
 
             {isOwner && (
               <>
-                {!TBA_TARGET_SBT_CA_ADDRESSES.includes(
-                  contractAddress || ""
-                ) && (
+                {!token.isSbt && (
                   <button
                     onClick={() => setShowTransferModal(true)}
                     disabled={transferring}
@@ -1098,59 +1144,29 @@ export const TokenDetailPage: React.FC = () => {
                     />
                     {creatingTBA ? "Creating TBA..." : "Create TBA Account"}
                   </button>
-                ) : tbaInfo && tbaInfo.accountAddress && tbaInfo.isDeployed ? (
-                  <div className={styles.tbaInfo}>
+                ) : null}
+
+                {!(tbaInfo && tbaInfo.isDeployed) && (
+                  <button
+                    onClick={handleBurn}
+                    disabled={burning}
+                    className={styles.burnButton}
+                  >
                     <img
-                      src={backpackIcon}
-                      alt="TBA"
+                      src={fireIcon}
+                      alt="Burn"
                       width="16"
                       height="16"
                       style={{ marginRight: "8px" }}
                     />
-                    TBA:{" "}
-                    <Link
-                      to={`/own/${tbaInfo.accountAddress}`}
-                      className={styles.tbaLink}
-                    >
-                      {tbaInfo.accountAddress.slice(0, 6)}...
-                      {tbaInfo.accountAddress.slice(-4)}
-                    </Link>
-                    <button
-                      onClick={() => copyToClipboard(tbaInfo.accountAddress)}
-                      className={styles.copyButton}
-                      title="Copy TBA Address"
-                    >
-                      <img src={copyIcon} alt="Copy" width="14" height="14" />
-                    </button>
-                    {tbaInfo.balance !== "0.0" && (
-                      <span className={styles.tbaBalance}>
-                        ({tbaInfo.balance}{" "}
-                        {import.meta.env.VITE_CURRENCY_SYMBOL})
-                      </span>
-                    )}
-                  </div>
-                ) : null}
-
-                <button
-                  onClick={handleBurn}
-                  disabled={burning}
-                  className={styles.burnButton}
-                >
-                  <img
-                    src={fireIcon}
-                    alt="Burn"
-                    width="16"
-                    height="16"
-                    style={{ marginRight: "8px" }}
-                  />
-                  {burning ? "Burning..." : "Burn NFT"}
-                </button>
+                    {burning ? "Burning..." : "Burn NFT"}
+                  </button>
+                )}
               </>
             )}
           </div>
         </div>
       </div>
-
 
       {/* TBA Owned NFTs Section - Multiple Contracts */}
       {tbaInfo &&

@@ -381,3 +381,37 @@
     max-width: 100%;
   }
 }
+
+.checkboxGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.checkbox {
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: #30bca7;
+  cursor: pointer;
+}
+
+.checkboxLabel {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #333;
+  cursor: pointer;
+  user-select: none;
+}
+
+.loadingText {
+  font-size: 0.875rem;
+  color: #666;
+  font-weight: normal;
+  font-style: italic;
+}
+
+.maxInfo {
+  font-size: 0.875rem;
+  color: #30bca7;
+  font-weight: normal;
+}

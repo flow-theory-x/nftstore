@@ -1,11 +1,5 @@
-// NFT対象コントラクトアドレス（TBAを作成・管理する通常のNFTコントラクト）
-export const TBA_TARGET_NFT_CA_ADDRESSES = (import.meta.env.VITE_TBA_TARGET_NFT_CA || "0x0000000000000000000000000000000000000000")
-  .split(',')
-  .map(addr => addr.trim())
-  .filter(addr => addr && addr !== "0x0000000000000000000000000000000000000000");
-
-// 後方互換性のため、最初のアドレスをCONTRAC_ADDRESSとして使用
-export const CONTRACT_ADDRESS = TBA_TARGET_NFT_CA_ADDRESSES[0] || "0x0000000000000000000000000000000000000000";
+// NFT対象コントラクトアドレス
+export const CONTRACT_ADDRESS = import.meta.env.VITE_TARGET_NFT_CA || "0x0000000000000000000000000000000000000000";
 export const CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID) || 1;
 export const CHAIN_NAME = import.meta.env.VITE_CHAIN_NAME || "Ethereum";
 export const RPC_URL =
@@ -39,28 +33,19 @@ export const MODEL_VIEWER_BASE_URL = import.meta.env.VITE_MODEL_VIEWER_BASE_URL 
 export const TBA_REGISTRY_ADDRESS = import.meta.env.VITE_TBA_REGISTRY_ADDRESS || "0x000000006551c19487814612e58FE06813775758";
 export const TBA_ACCOUNT_IMPLEMENTATION = import.meta.env.VITE_TBA_ACCOUNT_IMPLEMENTATION || "0x2D25602551487C3f3354dD80D76D54383A243358";
 
-// SBT対象コントラクトアドレス（TBAが所有するSoulBound Tokenコントラクト）
-export const TBA_TARGET_SBT_CA_ADDRESSES = (import.meta.env.VITE_TBA_TARGET_SBT_CA || "0x0000000000000000000000000000000000000000")
-  .split(',')
-  .map(addr => addr.trim())
-  .filter(addr => addr && addr !== "0x0000000000000000000000000000000000000000");
-
-// 後方互換性のため、最初のアドレスを単体変数として保持
-export const TBA_TARGET_CONTRACT_ADDRESS = TBA_TARGET_NFT_CA_ADDRESSES[0] || "0x0000000000000000000000000000000000000000";
-export const TBA_TARGET_CONTRACT_ADDRESSES = TBA_TARGET_NFT_CA_ADDRESSES;
+// TBA対象コントラクトアドレス
+export const TBA_TARGET_CONTRACT_ADDRESS = CONTRACT_ADDRESS;
 
 // BURN済みトークンを示すdead address
 export const DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 
 // TBA機能が有効かどうかをチェック
 export const isTBAEnabled = (): boolean => {
-  return TBA_TARGET_NFT_CA_ADDRESSES.length > 0 || TBA_TARGET_SBT_CA_ADDRESSES.length > 0;
+  return CONTRACT_ADDRESS !== "0x0000000000000000000000000000000000000000";
 };
 
 // 指定されたコントラクトアドレスがTBA対象かどうかをチェック
 export const isTBATargetContract = (contractAddress: string): boolean => {
-  const address = contractAddress.toLowerCase();
-  return TBA_TARGET_NFT_CA_ADDRESSES.some(addr => addr.toLowerCase() === address) ||
-         TBA_TARGET_SBT_CA_ADDRESSES.some(addr => addr.toLowerCase() === address);
+  return contractAddress.toLowerCase() === CONTRACT_ADDRESS.toLowerCase();
 };
 

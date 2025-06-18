@@ -81,6 +81,24 @@
   border: 1px solid #f5c6cb;
 }
 
+.statusTBA {
+  background-color: #e1f5fe;
+  color: #01579b;
+  border: 1px solid #b3e5fc;
+}
+
+.statusEOA {
+  background-color: #f3e5f5;
+  color: #4a148c;
+  border: 1px solid #e1bee7;
+}
+
+.statusDiscord {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+
 .content {
   display: flex;
   flex-direction: column;
@@ -246,4 +264,37 @@
   .displayName {
     font-size: 1.3rem;
   }
+}
+
+/* TBA specific styles */
+.tbaAvatarPlaceholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e1f5fe 0%, #b3e5fc 100%);
+  border: 2px solid #01579b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tbaIcon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.eoaAvatarPlaceholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+  border: 2px solid #4a148c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.eoaIcon {
+  font-size: 2rem;
+  line-height: 1;
 }

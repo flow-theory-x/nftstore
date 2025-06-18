@@ -5,8 +5,7 @@ import {
   TBA_ACCOUNT_IMPLEMENTATION,
   CHAIN_ID,
   DEAD_ADDRESS,
-  TBA_TARGET_NFT_CA_ADDRESSES,
-  TBA_TARGET_SBT_CA_ADDRESSES,
+  CONTRACT_ADDRESS,
 } from "../constants";
 import tbaRegistryAbi from "../../config/tba_registry_abi.json";
 import tbaAccountAbi from "../../config/tba_account_abi.json";
@@ -464,8 +463,8 @@ export class TbaService {
         return cached;
       }
 
-      // 全てのターゲットコントラクトをチェック
-      const allTargetContracts = [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
+      // ターゲットコントラクトをチェック
+      const allTargetContracts = [CONTRACT_ADDRESS];
       
       for (const contractAddress of allTargetContracts) {
         // 効率化：範囲を大幅に制限し、バッチ処理を実装
@@ -561,7 +560,7 @@ export class TbaService {
     }
     
     // 4. 特定のコントラクトで直接テスト（効率化された範囲）
-    const allTargetContracts = [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
+    const allTargetContracts = [CONTRACT_ADDRESS];
     for (const contractAddress of allTargetContracts) {
       console.log(`🔍 Testing contract: ${contractAddress}`);
       for (let tokenId = 1; tokenId <= 20; tokenId++) {
