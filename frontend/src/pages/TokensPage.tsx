@@ -38,21 +38,10 @@ export const TokensPage: React.FC = () => {
     try {
       const contractService = new NftContractService(contractAddress);
 
-      // 進捗状況を監視するためのカスタムハンドラーを作成
-      const progressHandler = (message: string, tokenId?: string) => {
-        if (tokenId) {
-          setCurrentTokenInfo(`Processing token #${tokenId}: ${message}`);
-        } else {
-          setCurrentTokenInfo(message);
-        }
-      };
+      setCurrentTokenInfo("Loading batch of tokens...");
 
       const { tokens: newTokens, hasMore: moreTokens } =
-        await contractService.getTokensBatchWithProgress(
-          startIndex,
-          3,
-          progressHandler
-        );
+        await contractService.getTokensBatch(startIndex, 3);
 
       // 重複チェックを追加
       setTokens((prev) => {
@@ -108,22 +97,9 @@ export const TokensPage: React.FC = () => {
 
         if (supply > 0) {
           setLoadingMessage("Loading first batch of tokens...");
-          // 初期読み込み時も詳細な進捗を表示
-          const contractService = new NftContractService(contractAddress);
-          const progressHandler = (message: string, tokenId?: string) => {
-            if (tokenId) {
-              setLoadingMessage(`Processing token #${tokenId}: ${message}`);
-            } else {
-              setLoadingMessage(message);
-            }
-          };
 
           const { tokens: newTokens, hasMore: moreTokens } =
-            await contractService.getTokensBatchWithProgress(
-              0,
-              3,
-              progressHandler
-            );
+            await contractService.getTokensBatch(0, 3);
 
           setTokens(newTokens);
           setHasMore(moreTokens);

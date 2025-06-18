@@ -47,6 +47,27 @@
   background-color: #c82333;
 }
 
+.errorActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.copyErrorButton {
+  padding: 8px 16px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.copyErrorButton:hover {
+  background-color: #5a6268;
+}
+
 .empty {
   display: flex;
   justify-content: center;
