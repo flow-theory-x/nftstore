@@ -17,9 +17,31 @@ export const WalletConnect: React.FC = () => {
   const isWrongNetwork =
     walletState.chainId && walletState.chainId !== CHAIN_ID;
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("Copied!");
+    } catch (err) {
+      console.error("Failed to copy text: ", err);
+    }
+  };
+
   return (
     <div className={styles.walletConnect}>
-      {error && <div className={styles.error}>{error}</div>}
+      {error && (
+        <div className={styles.error}>
+          <p>{error}</p>
+          <div className={styles.errorActions}>
+            <button
+              onClick={() => copyToClipboard(error)}
+              className={styles.copyErrorButton}
+              title="Copy error message"
+            >
+              📋 Copy Error
+            </button>
+          </div>
+        </div>
+      )}
 
       {!walletState.isConnected ? (
         <button

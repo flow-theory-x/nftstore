@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { NftContractService } from "../utils/nftContract";
 import { useWallet } from "../hooks/useWallet";
+import { Spinner } from "../components/Spinner";
 import { CHAIN_ID, CHAIN_NAME, CURRENCY_SYMBOL } from "../constants";
 import styles from "./MintPage.module.css";
 
@@ -35,17 +36,28 @@ export const MintPage: React.FC = () => {
   const [fetchingBalance, setFetchingBalance] = useState(false);
   const [feeError, setFeeError] = useState<boolean>(false);
   const [customFee, setCustomFee] = useState<string>("0");
+  const [recipientAddress, setRecipientAddress] = useState<string>("");
 
   const isWrongNetwork =
     walletState.chainId && walletState.chainId !== CHAIN_ID;
-  const getCurrentFee = () => feeError ? customFee : mintFee;
-  
+  const getCurrentFee = () => (feeError ? customFee : mintFee);
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("Copied!");
+    } catch (err) {
+      console.error("Failed to copy text: ", err);
+    }
+  };
+
   const canMint =
     walletState.isConnected &&
     !isWrongNetwork &&
     metaUrl.trim() !== "" &&
     metadataPreview !== null &&
     !previewError &&
+    recipientAddress.trim() !== "" &&
     (!feeError || (feeError && parseFloat(customFee) >= 0));
 
   useEffect(() => {
@@ -58,12 +70,15 @@ export const MintPage: React.FC = () => {
 
         const namePromise = contractService.getName();
         let feePromise;
-        
+
         try {
           feePromise = await contractService.getMintFee();
           setMintFee(feePromise);
         } catch (feeErr: any) {
-          console.warn("Failed to fetch mint fee, using custom fee input:", feeErr);
+          console.warn(
+            "Failed to fetch mint fee, using custom fee input:",
+            feeErr
+          );
           setFeeError(true);
           setMintFee("0");
         }
@@ -161,7 +176,7 @@ export const MintPage: React.FC = () => {
       const contractService = new NftContractService(contractAddress);
       const currentFee = getCurrentFee();
       const tx = await contractService.mint(
-        walletState.address!,
+        recipientAddress.trim(),
         metaUrl.trim(),
         signer,
         currentFee
@@ -178,6 +193,7 @@ export const MintPage: React.FC = () => {
 
       // Clear form
       setMetaUrl("");
+      setRecipientAddress("");
 
       // Navigate to owned tokens after successful mint
       setTimeout(() => {
@@ -194,7 +210,7 @@ export const MintPage: React.FC = () => {
   return (
     <div className={styles.container}>
       <h1 className={styles.title}>
-        {fetchingName ? "Loading..." : `Mint ${contractName}`}
+        {fetchingName ? <Spinner size="small" /> : `Mint ${contractName}`}
       </h1>
 
       <div className={styles.content}>
@@ -205,7 +221,13 @@ export const MintPage: React.FC = () => {
             <div className={styles.infoItem}>
               <span className={styles.infoLabel}>Mint Fee:</span>
               <span className={styles.infoValue}>
-                {fetchingFee ? "Loading..." : feeError ? "Custom" : `${mintFee} ${CURRENCY_SYMBOL}`}
+                {fetchingFee ? (
+                  <Spinner size="small" />
+                ) : feeError ? (
+                  "Custom"
+                ) : (
+                  `${mintFee} ${CURRENCY_SYMBOL}`
+                )}
               </span>
             </div>
 
@@ -238,11 +260,11 @@ export const MintPage: React.FC = () => {
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Balance:</span>
                 <span className={styles.infoValue}>
-                  {fetchingBalance
-                    ? "Loading..."
-                    : `${parseFloat(walletBalance).toFixed(
-                        4
-                      )} ${CURRENCY_SYMBOL}`}
+                  {fetchingBalance ? (
+                    <Spinner size="small" />
+                  ) : (
+                    `${parseFloat(walletBalance).toFixed(4)} ${CURRENCY_SYMBOL}`
+                  )}
                 </span>
               </div>
 
@@ -282,7 +304,8 @@ export const MintPage: React.FC = () => {
               <div className={styles.feeSection}>
                 <h3 className={styles.sectionTitle}>Custom Mint Fee</h3>
                 <div className={styles.warningMessage}>
-                  Unable to fetch mint fee from contract. Please enter the mint fee manually.
+                  Unable to fetch mint fee from contract. Please enter the mint
+                  fee manually.
                 </div>
                 <div className={styles.formGroup}>
                   <label htmlFor="customFee" className={styles.label}>
@@ -300,11 +323,38 @@ export const MintPage: React.FC = () => {
                     required
                   />
                   <div className={styles.hint}>
-                    Enter the amount of {CURRENCY_SYMBOL} to send with the mint transaction
+                    Enter the amount of {CURRENCY_SYMBOL} to send with the mint
+                    transaction
                   </div>
                 </div>
               </div>
             )}
+
+            <div className={styles.formGroup}>
+              <label htmlFor="recipientAddress" className={styles.label}>
+                Recipient Address *
+              </label>
+              <input
+                type="text"
+                id="recipientAddress"
+                value={recipientAddress}
+                onChange={(e) => setRecipientAddress(e.target.value)}
+                placeholder="0x..."
+                className={styles.input}
+                required
+              />
+              <div className={styles.hint}>
+                Enter the wallet address to receive the minted NFT
+              </div>
+              <button
+                type="button"
+                onClick={() => setRecipientAddress(walletState.address || "")}
+                className={styles.selfButton}
+                disabled={!walletState.address}
+              >
+                Use My Address
+              </button>
+            </div>
 
             <div className={styles.formGroup}>
               <label htmlFor="metaUrl" className={styles.label}>
@@ -327,7 +377,7 @@ export const MintPage: React.FC = () => {
             {previewLoading && (
               <div className={styles.previewSection}>
                 <div className={styles.previewLoading}>
-                  Loading metadata preview...
+                  <Spinner size="medium" text="Loading metadata preview..." />
                 </div>
               </div>
             )}
@@ -335,7 +385,16 @@ export const MintPage: React.FC = () => {
             {previewError && (
               <div className={styles.previewSection}>
                 <div className={styles.previewError}>
-                  Failed to load metadata: {previewError}
+                  <p>Failed to load metadata: {previewError}</p>
+                  <div className={styles.errorActions}>
+                    <button
+                      onClick={() => copyToClipboard(previewError)}
+                      className={styles.copyErrorButton}
+                      title="Copy error message"
+                    >
+                      Copy
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -397,7 +456,20 @@ export const MintPage: React.FC = () => {
               </div>
             )}
 
-            {error && <div className={styles.error}>{error}</div>}
+            {error && (
+              <div className={styles.error}>
+                <p>{error}</p>
+                <div className={styles.errorActions}>
+                  <button
+                    onClick={() => copyToClipboard(error)}
+                    className={styles.copyErrorButton}
+                    title="Copy error message"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
 
             {success && <div className={styles.success}>{success}</div>}
 
