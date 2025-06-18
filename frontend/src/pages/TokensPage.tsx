@@ -13,12 +13,13 @@ export const TokensPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [totalSupply, setTotalSupply] = useState<number>(0);
+  const [totalSupply, setTotalSupply] = useState<number | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [contractName, setContractName] = useState<string>("All Tokens");
   const [loadingMessage, setLoadingMessage] =
     useState<string>("Loading tokens...");
   const [currentTokenInfo, setCurrentTokenInfo] = useState<string>("");
+  const [contractInfoLoaded, setContractInfoLoaded] = useState(false);
 
   const handleRefresh = () => {
     // ページをリロードして最新データを取得
@@ -71,18 +72,17 @@ export const TokensPage: React.FC = () => {
     setError(null);
     setIsLoadingMore(false);
     setHasMore(true);
-    setTotalSupply(0);
+    setTotalSupply(null);
     setInitialized(false);
+    setContractInfoLoaded(false);
 
-    const initializeTokens = async () => {
+    // First, load contract info immediately
+    const loadContractInfo = async () => {
       try {
-        setLoading(true);
-        setError(null);
         setLoadingMessage("Connecting to contract...");
-
         const contractService = new NftContractService(contractAddress);
 
-        // コントラクト名を先に取得
+        // Load contract name
         try {
           setLoadingMessage("Fetching contract name...");
           const name = await contractService.getName();
@@ -91,30 +91,50 @@ export const TokensPage: React.FC = () => {
           console.warn("Failed to fetch contract name:", err);
         }
 
+        // Load total supply
         setLoadingMessage("Getting total supply...");
         const supply = await contractService.getTotalSupply();
         setTotalSupply(supply);
+        setContractInfoLoaded(true);
+        setLoading(false);
 
-        if (supply > 0) {
-          setLoadingMessage("Loading first batch of tokens...");
+      } catch (err: any) {
+        setError(err.message || "Failed to fetch contract info");
+        console.error("Failed to fetch contract info:", err);
+        setLoading(false);
+      }
+    };
 
-          const { tokens: newTokens, hasMore: moreTokens } =
-            await contractService.getTokensBatch(0, 3);
+    loadContractInfo();
+  }, [contractAddress]);
 
-          setTokens(newTokens);
-          setHasMore(moreTokens);
-        }
+  // Start loading tokens after contract info is loaded
+  useEffect(() => {
+    if (!contractInfoLoaded || totalSupply === null || totalSupply === 0 || initialized) return;
+
+    const startLoadingTokens = async () => {
+      try {
+        setIsLoadingMore(true);
+        setLoadingMessage("Loading first batch of tokens...");
+
+        const contractService = new NftContractService(contractAddress);
+        const { tokens: newTokens, hasMore: moreTokens } =
+          await contractService.getTokensBatch(0, 3);
+
+        setTokens(newTokens);
+        setHasMore(moreTokens);
         setInitialized(true);
       } catch (err: any) {
         setError(err.message || "Failed to fetch tokens");
         console.error("Failed to fetch tokens:", err);
       } finally {
-        setLoading(false);
+        setIsLoadingMore(false);
+        setLoadingMessage("");
       }
     };
 
-    initializeTokens();
-  }, [contractAddress]);
+    startLoadingTokens();
+  }, [contractInfoLoaded, totalSupply, contractAddress, initialized]);
 
   useEffect(() => {
     if (!initialized || !hasMore || loading || isLoadingMore) return;
@@ -151,7 +171,7 @@ export const TokensPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [tokens.length, hasMore, loading, isLoadingMore, initialized]);
 
-  if (loading) {
+  if (loading && !contractInfoLoaded) {
     return (
       <div className={styles.container}>
         <h1 className={styles.title}>{contractName}</h1>
@@ -160,7 +180,7 @@ export const TokensPage: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (error && !contractInfoLoaded) {
     return (
       <div className={styles.container}>
         <h1 className={styles.title}>{contractName}</h1>
@@ -190,7 +210,33 @@ export const TokensPage: React.FC = () => {
     <div className={styles.container}>
       <h1 className={styles.title}>{contractName}</h1>
 
-      {totalSupply === 0 ? (
+      {error && contractInfoLoaded && (
+        <div className={styles.error}>
+          <p>{error}</p>
+          <div className={styles.errorActions}>
+            <button
+              onClick={() => copyToClipboard(error)}
+              className={styles.copyErrorButton}
+              title="Copy error message"
+            >
+              Copy
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className={styles.retryButton}
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
+      {totalSupply === null ? (
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "24px" }}>
+          <Spinner size="medium" />
+          <span>{loadingMessage || "Loading contract information..."}</span>
+        </div>
+      ) : totalSupply === 0 ? (
         <div className={styles.empty}>
           <p>No tokens found</p>
         </div>
@@ -203,11 +249,11 @@ export const TokensPage: React.FC = () => {
             <span>
               Loaded: {tokens.length}/{totalSupply} tokens
             </span>
-            {isLoadingMore && (
+            {(isLoadingMore || loadingMessage) && (
               <>
                 <Spinner size="small" />
                 <span style={{ fontSize: "0.9em", color: "#666" }}>
-                  {currentTokenInfo || "Loading more tokens..."}
+                  {currentTokenInfo || loadingMessage || "Loading tokens..."}
                 </span>
               </>
             )}
@@ -224,7 +270,20 @@ export const TokensPage: React.FC = () => {
             ))}
           </div>
 
-          {hasMore && !isLoadingMore && (
+          {tokens.length === 0 && !isLoadingMore && !loadingMessage && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              padding: '40px',
+              gap: '12px'
+            }}>
+              <Spinner size="medium" />
+              <span>Preparing to load tokens...</span>
+            </div>
+          )}
+
+          {hasMore && !isLoadingMore && tokens.length > 0 && (
             <Spinner size="medium" text="Loading next batch..." />
           )}
         </>
