@@ -39,10 +39,12 @@ export const TokensPage: React.FC = () => {
     try {
       const contractService = new NftContractService(contractAddress);
 
-      setCurrentTokenInfo("Loading batch of tokens...");
-
       const { tokens: newTokens, hasMore: moreTokens } =
-        await contractService.getTokensBatch(startIndex, 3);
+        await contractService.getTokensBatchWithProgress(
+          startIndex, 
+          3, 
+          setCurrentTokenInfo
+        );
 
       // 重複チェックを追加
       setTokens((prev) => {
@@ -119,7 +121,11 @@ export const TokensPage: React.FC = () => {
 
         const contractService = new NftContractService(contractAddress);
         const { tokens: newTokens, hasMore: moreTokens } =
-          await contractService.getTokensBatch(0, 3);
+          await contractService.getTokensBatchWithProgress(
+            0, 
+            3, 
+            setCurrentTokenInfo
+          );
 
         setTokens(newTokens);
         setHasMore(moreTokens);
