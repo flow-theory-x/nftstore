@@ -6,8 +6,8 @@ export class RateLimiter {
   private static instance: RateLimiter;
   private requestQueue: Array<() => Promise<any>> = [];
   private isProcessing = false;
-  private minDelay = 100; // 最小100ms間隔
-  private rateLimitDelay = 10000; // レート制限時は10秒待機
+  private minDelay = 500; // 最小500ms間隔に増加
+  private rateLimitDelay = 60000; // レート制限時は60秒待機に増加
   private rateLimitCallback: RateLimitCallback | null = null;
   private retryCallback: RetryCallback | null = null;
 

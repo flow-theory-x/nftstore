@@ -385,9 +385,22 @@ export class TbaService {
         return cached;
       }
 
-      console.log("🔗 Blockchain CALL: isTBAAccount", address);
+      // コントラクトコードの存在確認（最も軽量）
+      const code = await this.provider.getCode(address);
+      if (code === "0x") {
+        // コードがない場合はTBAアカウントではない
+        cacheService.setContractData(
+          this.registryAddress,
+          `is_tba_${address}`,
+          false,
+          30 * 60 * 1000 // 30分キャッシュ
+        );
+        return false;
+      }
+
+      console.log("🔗 Blockchain CALL: isTBAAccount owner check", address);
       
-      // TBAアカウントであることを確認するために、owner()メソッドの呼び出しを試行
+      // owner()メソッドの呼び出しを試行
       try {
         const accountContract = this.getAccountContract(address);
         await (accountContract as any).owner();
@@ -396,7 +409,8 @@ export class TbaService {
         cacheService.setContractData(
           this.registryAddress,
           `is_tba_${address}`,
-          true
+          true,
+          30 * 60 * 1000 // 30分キャッシュ
         );
         console.log("💾 Cache SET: isTBAAccount", address, true);
         return true;
@@ -405,7 +419,8 @@ export class TbaService {
         cacheService.setContractData(
           this.registryAddress,
           `is_tba_${address}`,
-          false
+          false,
+          30 * 60 * 1000 // 30分キャッシュ
         );
         console.log("💾 Cache SET: isTBAAccount", address, false);
         return false;
@@ -436,23 +451,77 @@ export class TbaService {
   // 指定されたアドレスがどのコントラクトのTBAアカウントかを特定
   async findTBASourceToken(address: string): Promise<{contractAddress: string, tokenId: string} | null> {
     try {
+      // キャッシュからチェック
+      const cacheKey = `tba_source_${address.toLowerCase()}`;
+      const cached = cacheService.getContractData<{contractAddress: string, tokenId: string}>(
+        this.registryAddress,
+        cacheKey
+      );
+      if (cached) {
+        console.log("📋 Cache HIT: findTBASourceToken", address, cached);
+        return cached;
+      }
+
       // 全てのターゲットコントラクトをチェック
       const allTargetContracts = [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
       
       for (const contractAddress of allTargetContracts) {
-        // 各コントラクトのトークンをチェック（扩張範囲）
-        for (let tokenId = 1; tokenId <= 1000; tokenId++) {
-          try {
-            const tbaAddress = await this.getAccountAddress(contractAddress, tokenId.toString());
-            if (tbaAddress.toLowerCase() === address.toLowerCase()) {
-              console.log(`🎯 Found TBA source: ${contractAddress}#${tokenId} -> ${address}`);
-              return { contractAddress, tokenId: tokenId.toString() };
+        // 効率化：範囲を大幅に制限し、バッチ処理を実装
+        const maxTokenId = 50; // さらに50に削減
+        const batchSize = 5; // バッチサイズも5に削減
+        
+        for (let start = 1; start <= maxTokenId; start += batchSize) {
+          const batch = Array.from(
+            { length: Math.min(batchSize, maxTokenId - start + 1) },
+            (_, i) => start + i
+          );
+          
+          // バッチで並行処理
+          const results = await Promise.allSettled(
+            batch.map(async (tokenId) => {
+              try {
+                const tbaAddress = await this.getAccountAddress(contractAddress, tokenId.toString());
+                return {
+                  tokenId: tokenId.toString(),
+                  tbaAddress,
+                  match: tbaAddress.toLowerCase() === address.toLowerCase()
+                };
+              } catch {
+                return null;
+              }
+            })
+          );
+          
+          // マッチするものを検索
+          for (const result of results) {
+            if (result.status === 'fulfilled' && result.value?.match) {
+              const found = { contractAddress, tokenId: result.value.tokenId };
+              console.log(`🎯 Found TBA source: ${contractAddress}#${result.value.tokenId} -> ${address}`);
+              
+              // 結果をキャッシュ（10分間）
+              cacheService.setContractData(
+                this.registryAddress,
+                cacheKey,
+                found,
+                10 * 60 * 1000
+              );
+              
+              return found;
             }
-          } catch (err) {
-            // エラーは無視して続行
           }
+          
+          // レート制限を避けるため待機時間を増加
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
+      
+      // 見つからなかった場合もキャッシュ（5分間）
+      cacheService.setContractData(
+        this.registryAddress,
+        cacheKey,
+        null,
+        5 * 60 * 1000
+      );
       
       return null;
     } catch (error) {
@@ -489,11 +558,11 @@ export class TbaService {
       console.log(`❌ No source token found in known contracts`);
     }
     
-    // 4. 特定のコントラクトで直接テスト
+    // 4. 特定のコントラクトで直接テスト（効率化された範囲）
     const allTargetContracts = [...TBA_TARGET_NFT_CA_ADDRESSES, ...TBA_TARGET_SBT_CA_ADDRESSES];
     for (const contractAddress of allTargetContracts) {
       console.log(`🔍 Testing contract: ${contractAddress}`);
-      for (let tokenId = 1; tokenId <= 10; tokenId++) {
+      for (let tokenId = 1; tokenId <= 20; tokenId++) {
         try {
           const computedTBA = await this.getAccountAddress(contractAddress, tokenId.toString());
           console.log(`  Token ${tokenId}: ${computedTBA}`);

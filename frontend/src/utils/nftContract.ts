@@ -58,20 +58,52 @@ export class NftContractService {
   }
 
   async getTotalSupply(): Promise<number> {
-    return rateLimiter.executeWithRetry(async () => {
-      console.log("🔗 Blockchain CALL: getTotalSupply");
-      const supply = await (this.contract as any).totalSupply();
-      const result = Number(supply);
-      return result;
-    });
+    try {
+      const cached = cacheService.getContractData<number>(this.contractAddress, 'totalSupply');
+      if (cached !== null && cached !== undefined) {
+        console.log("📋 Cache HIT: getTotalSupply", cached);
+        return cached;
+      }
+
+      return rateLimiter.executeWithRetry(async () => {
+        console.log("🔗 Blockchain CALL: getTotalSupply");
+        const supply = await (this.contract as any).totalSupply();
+        const result = Number(supply);
+        
+        // 総供給量は比較的変わりにくいので30分キャッシュ（新しいミントを考慮）
+        cacheService.setContractData(this.contractAddress, 'totalSupply', result, 30 * 60 * 1000);
+        console.log("💾 Cache SET: getTotalSupply", result);
+        
+        return result;
+      });
+    } catch (error) {
+      console.error("Failed to get total supply:", error);
+      throw error;
+    }
   }
 
   async getName(): Promise<string> {
-    return rateLimiter.executeWithRetry(async () => {
-      console.log("🔗 Blockchain CALL: getName (no cache)");
-      const name = await (this.contract as any).name();
-      return name;
-    });
+    try {
+      const cached = cacheService.getContractData<string>(this.contractAddress, 'name');
+      if (cached) {
+        console.log("📋 Cache HIT: getName", cached);
+        return cached;
+      }
+
+      return rateLimiter.executeWithRetry(async () => {
+        console.log("🔗 Blockchain CALL: getName");
+        const name = await (this.contract as any).name();
+        
+        // コントラクト名は変わらないので長期間キャッシュ（24時間）
+        cacheService.setContractData(this.contractAddress, 'name', name, 24 * 60 * 60 * 1000);
+        console.log("💾 Cache SET: getName", name);
+        
+        return name;
+      });
+    } catch (error) {
+      console.error("Failed to get contract name:", error);
+      throw error;
+    }
   }
 
   async getTokenByIndex(index: number): Promise<string> {
@@ -118,11 +150,29 @@ export class NftContractService {
   }
 
   async getBalanceOf(owner: string): Promise<number> {
-    return rateLimiter.execute(async () => {
-      console.log("🔗 Blockchain CALL: getBalanceOf (no cache)", owner);
-      const balance = await (this.contract as any).balanceOf(owner);
-      return Number(balance);
-    });
+    try {
+      const cacheKey = `balance_${owner.toLowerCase()}`;
+      const cached = cacheService.getContractData<number>(this.contractAddress, cacheKey);
+      if (cached !== null && cached !== undefined) {
+        console.log("📋 Cache HIT: getBalanceOf", owner, cached);
+        return cached;
+      }
+
+      return rateLimiter.execute(async () => {
+        console.log("🔗 Blockchain CALL: getBalanceOf", owner);
+        const balance = await (this.contract as any).balanceOf(owner);
+        const result = Number(balance);
+        
+        // バランスは変わりやすいので短期間キャッシュ（5分）
+        cacheService.setContractData(this.contractAddress, cacheKey, result, 5 * 60 * 1000);
+        console.log("💾 Cache SET: getBalanceOf", owner, result);
+        
+        return result;
+      });
+    } catch (error) {
+      console.error("Failed to get balance:", error);
+      throw error;
+    }
   }
 
   async getTokenOfOwnerByIndex(owner: string, index: number): Promise<string> {
@@ -197,25 +247,35 @@ export class NftContractService {
       // 全トークンIDリストをキャッシュから取得または作成
       let allTokenIds = cacheService.getContractData<string[]>(this.contractAddress, 'allTokenIds');
       if (!allTokenIds) {
-        onProgress?.('Fetching all token IDs...');
-        console.log('🔗 Fetching all token IDs for sorting...');
+        onProgress?.('Fast loading recent tokens...');
+        console.log('🔗 Fast initial load with progress: getting recent tokens only');
         const totalSupply = await this.getTotalSupply();
         console.log('📊 Total supply:', totalSupply);
         
+        // 高速化：最初は最新のトークンIDから逆順で取得
+        const maxTokensToFetch = Math.min(totalSupply, 20); // 最初は20個まで
         allTokenIds = [];
-        for (let i = 0; i < totalSupply; i++) {
-          onProgress?.(`Getting token ID ${i + 1}/${totalSupply}`);
-          const tokenId = await this.getTokenByIndex(i);
-          allTokenIds.push(tokenId);
+        
+        onProgress?.('Loading latest tokens...');
+        // 最新のトークンIDから逆順で取得（最新が最初に表示される）
+        for (let i = totalSupply - 1; i >= Math.max(0, totalSupply - maxTokensToFetch); i--) {
+          try {
+            onProgress?.(`Getting token ID ${totalSupply - i}/${maxTokensToFetch}`);
+            const tokenId = await this.getTokenByIndex(i);
+            allTokenIds.push(tokenId);
+          } catch (error) {
+            console.warn(`Failed to get tokenByIndex(${i}):`, error);
+            // エラーが発生したトークンはスキップして続行
+          }
         }
         
-        onProgress?.('Sorting tokens...');
-        // トークンIDで降順ソート（最新が最初）
-        allTokenIds.sort((a, b) => parseInt(b) - parseInt(a));
-        console.log('🔢 Sorted token IDs:', allTokenIds);
+        console.log('🔢 Fast loaded token IDs with progress:', allTokenIds);
         
-        // 1分間キャッシュ（新しいミントを考慮して短めに設定）
-        cacheService.setContractData(this.contractAddress, 'allTokenIds', allTokenIds);
+        // 短期間キャッシュ（完全なリストではないので短めに設定）
+        cacheService.setContractData(this.contractAddress, 'allTokenIds', allTokenIds, 2 * 60 * 1000); // 2分
+        
+        // バックグラウンドで全リストを非同期取得
+        this.loadAllTokenIdsInBackground(totalSupply);
       } else {
         console.log('📋 Using cached token IDs:', allTokenIds);
       }
@@ -300,22 +360,32 @@ export class NftContractService {
       // 全トークンIDリストをキャッシュから取得または作成
       let allTokenIds = cacheService.getContractData<string[]>(this.contractAddress, 'allTokenIds');
       if (!allTokenIds) {
-        console.log('🔗 Fetching all token IDs for sorting...');
+        console.log('🔗 Fast initial load: getting recent tokens only');
         const totalSupply = await this.getTotalSupply();
         console.log('📊 Total supply:', totalSupply);
         
+        // 高速化：最初のバッチの場合は最新のトークンIDから逆順で取得
+        const maxTokensToFetch = Math.min(totalSupply, 20); // 最初は20個まで
         allTokenIds = [];
-        for (let i = 0; i < totalSupply; i++) {
-          const tokenId = await this.getTokenByIndex(i);
-          allTokenIds.push(tokenId);
+        
+        // 最新のトークンIDから逆順で取得（最新が最初に表示される）
+        for (let i = totalSupply - 1; i >= Math.max(0, totalSupply - maxTokensToFetch); i--) {
+          try {
+            const tokenId = await this.getTokenByIndex(i);
+            allTokenIds.push(tokenId);
+          } catch (error) {
+            console.warn(`Failed to get tokenByIndex(${i}):`, error);
+            // エラーが発生したトークンはスキップして続行
+          }
         }
         
-        // トークンIDで降順ソート（最新が最初）
-        allTokenIds.sort((a, b) => parseInt(b) - parseInt(a));
-        console.log('🔢 Sorted token IDs:', allTokenIds);
+        console.log('🔢 Fast loaded token IDs:', allTokenIds);
         
-        // 1分間キャッシュ（新しいミントを考慮して短めに設定）
-        cacheService.setContractData(this.contractAddress, 'allTokenIds', allTokenIds);
+        // 短期間キャッシュ（完全なリストではないので短めに設定）
+        cacheService.setContractData(this.contractAddress, 'allTokenIds', allTokenIds, 2 * 60 * 1000); // 2分
+        
+        // バックグラウンドで全リストを非同期取得
+        this.loadAllTokenIdsInBackground(totalSupply);
       } else {
         console.log('📋 Using cached token IDs:', allTokenIds);
       }
@@ -508,6 +578,64 @@ export class NftContractService {
       console.error("Failed to get contract info:", error);
       throw error;
     }
+  }
+
+  // バックグラウンドで全トークンIDリストを非同期取得
+  private async loadAllTokenIdsInBackground(totalSupply: number): Promise<void> {
+    // 既に完全なリストが存在する場合はスキップ
+    const fullListKey = 'allTokenIds_full';
+    const existingFullList = cacheService.getContractData<string[]>(this.contractAddress, fullListKey);
+    if (existingFullList && existingFullList.length >= totalSupply) {
+      console.log('📋 Full token list already exists, skipping background load');
+      return;
+    }
+
+    console.log('🔄 Starting background load of all token IDs...');
+    
+    // 非同期でバックグラウンド処理
+    setTimeout(async () => {
+      try {
+        const allTokenIds: string[] = [];
+        const batchSize = 10;
+        
+        for (let i = 0; i < totalSupply; i += batchSize) {
+          const batch = Array.from(
+            { length: Math.min(batchSize, totalSupply - i) },
+            (_, index) => i + index
+          );
+          
+          const results = await Promise.allSettled(
+            batch.map(async (index) => {
+              try {
+                return await this.getTokenByIndex(index);
+              } catch {
+                return null;
+              }
+            })
+          );
+          
+          results.forEach((result, idx) => {
+            if (result.status === 'fulfilled' && result.value) {
+              allTokenIds.push(result.value);
+            }
+          });
+          
+          // バックグラウンド処理なのでゆっくりと
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        // トークンIDで降順ソート（最新が最初）
+        allTokenIds.sort((a, b) => parseInt(b) - parseInt(a));
+        console.log('✅ Background load completed. Total tokens:', allTokenIds.length);
+        
+        // 完全なリストとして長期間キャッシュ
+        cacheService.setContractData(this.contractAddress, fullListKey, allTokenIds, 30 * 60 * 1000); // 30分
+        cacheService.setContractData(this.contractAddress, 'allTokenIds', allTokenIds, 30 * 60 * 1000); // 通常キャッシュも更新
+        
+      } catch (error) {
+        console.error('Background token loading failed:', error);
+      }
+    }, 1000); // 1秒後に開始
   }
 
   async fetchMetadata(tokenURI: string): Promise<any> {

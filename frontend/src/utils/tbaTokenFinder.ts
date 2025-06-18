@@ -173,9 +173,10 @@ export class TBATokenFinder {
           console.log(`🔄 Falling back to alternative methods...`);
         }
 
-        // Method 2: tokenByIndex でフォールバック
-        const totalSupplyBigInt = await (contract as any).totalSupply();
-        const totalSupply = Number(totalSupplyBigInt);
+        // Method 2: tokenByIndex でフォールバック（NftContractServiceでキャッシュ活用）
+        const { NftContractService } = await import("./nftContract");
+        const nftService = new NftContractService(contractAddress);
+        const totalSupply = await nftService.getTotalSupply();
         console.log(`📊 Total supply: ${totalSupply}`);
 
         let actualTokenIds: number[] = [];
