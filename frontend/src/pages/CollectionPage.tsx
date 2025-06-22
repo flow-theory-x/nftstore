@@ -98,7 +98,7 @@ export const CollectionPage: React.FC = () => {
           creators
         ] = await Promise.all([
           contractService.getName().catch(() => "Unknown"),
-          (contractService.contract as any).symbol().catch(() => "Unknown"),
+          contractService.getSymbol().catch(() => "Unknown"),
           contractService.getTotalSupply().catch(() => 0),
           contractService.getMaxFeeRate().catch(() => 0),
           contractService.getMintFee().catch(() => "0"),

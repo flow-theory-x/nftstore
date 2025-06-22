@@ -98,6 +98,30 @@ export class NftContractService {
     }
   }
 
+  async getSymbol(): Promise<string> {
+    try {
+      const cached = cacheService.getContractData<string>(this.contractAddress, 'symbol');
+      if (cached) {
+        console.log("📋 Cache HIT: getSymbol", cached);
+        return cached;
+      }
+
+      return rateLimiter.executeWithRetry(async () => {
+        console.log("🔗 Blockchain CALL: getSymbol");
+        const symbol = await (this.contract as any).symbol();
+        
+        // コントラクトシンボルは変わらないので長期間キャッシュ（24時間）
+        cacheService.setContractData(this.contractAddress, 'symbol', symbol, 24 * 60 * 60 * 1000);
+        console.log("💾 Cache SET: getSymbol", symbol);
+        
+        return symbol;
+      });
+    } catch (error) {
+      console.error("Failed to get contract symbol:", error);
+      throw error;
+    }
+  }
+
   async getTokenByIndex(index: number): Promise<string> {
     return rateLimiter.execute(async () => {
       const tokenId = await (this.contract as any).tokenByIndex(index);

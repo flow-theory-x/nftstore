@@ -19,6 +19,8 @@ contract DonatableNFT is ERC721Enumerable, RoyaltyStandard {
     mapping(uint256 => address) private _tokenCreator;
     mapping(address => string) private _creatorNames;
     uint256 public _totalBurned;
+    mapping(uint256 => string) public _originalTokenInfo;
+    mapping(address => bool) public _importers;
 
     /*
     * @param string name string Nft name
@@ -233,4 +235,39 @@ contract DonatableNFT is ERC721Enumerable, RoyaltyStandard {
         return _totalBurned;
     }
 
+    function setImporter(address importer, bool status) external {
+        require(msg.sender == _owner, "Owner only");
+        _importers[importer] = status;
+    }
+
+    // Import function for external use (called by DonatableNFTImporter)
+    function mintImported(
+        address to,
+        string memory metaUrl,
+        uint16 feeRate,
+        bool sbtFlag,
+        address creator,
+        string memory originalInfo
+    ) external returns (uint256) {
+        require(msg.sender == _owner || _importers[msg.sender], "Not authorized");
+        
+        _lastId++;
+        uint256 tokenId = _lastId;
+        _metaUrl[tokenId] = metaUrl;
+        _sbtFlag[tokenId] = sbtFlag;
+        _originalTokenInfo[tokenId] = originalInfo;
+        
+        _mint(to, tokenId);
+        _setTokenRoyalty(tokenId, creator, feeRate * 100);
+        
+        // Track creator
+        if (!_isCreator[creator]) {
+            _isCreator[creator] = true;
+            _creators.push(creator);
+        }
+        _creatorTokens[creator].push(tokenId);
+        _tokenCreator[tokenId] = creator;
+        
+        return tokenId;
+    }
 }
