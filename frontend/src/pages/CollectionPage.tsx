@@ -2,7 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { CONTRACT_ADDRESS } from "../constants";
 import { NftContractService } from "../utils/nftContract";
+import { MemberService } from "../utils/memberService";
 import { Spinner } from "../components/Spinner";
+import copyIcon from "../assets/icons/copy.svg";
 import styles from "./CollectionPage.module.css";
 
 interface ContractInfo {
@@ -24,9 +26,12 @@ export const CollectionPage: React.FC = () => {
     totalSupply: number;
   }[]>([]);
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
+  const [creatorMembers, setCreatorMembers] = useState<Map<string, any>>(new Map());
   const [loadingNft, setLoadingNft] = useState(true);
   const [loadingContractInfo, setLoadingContractInfo] = useState(true);
   const [nftLoadingMessage, setNftLoadingMessage] = useState("Loading NFT collections...");
+  const [copiedDiscordId, setCopiedDiscordId] = useState<string | null>(null);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   // NFTコレクション情報を取得
   useEffect(() => {
@@ -135,6 +140,58 @@ export const CollectionPage: React.FC = () => {
     fetchContractInfo();
   }, []);
 
+  // クリエイターのDiscord情報を取得
+  useEffect(() => {
+    const fetchCreatorMembers = async () => {
+      if (!contractInfo || contractInfo.creators.length === 0) {
+        return;
+      }
+
+      try {
+        console.log(`🔍 Fetching Discord info for ${contractInfo.creators.length} creators`);
+        const memberService = new MemberService();
+        const memberMap = new Map<string, any>();
+
+        // バッチで取得
+        const memberInfos = await memberService.getMemberInfoBatch(contractInfo.creators);
+        
+        Object.entries(memberInfos).forEach(([address, info]) => {
+          if (info) {
+            memberMap.set(address.toLowerCase(), info);
+            console.log(`📝 Creator ${address}:`, {
+              DiscordId: info.DiscordId || info.discord_id,
+              username: info.username || info.Username,
+              Icon: info.Icon,
+              avatar_url: info.avatar_url
+            });
+          }
+        });
+
+        setCreatorMembers(memberMap);
+        console.log(`✅ Fetched Discord info for ${memberMap.size} creators`);
+      } catch (err) {
+        console.error("Failed to fetch creator Discord info:", err);
+      }
+    };
+
+    fetchCreatorMembers();
+  }, [contractInfo]);
+
+  // Discord IDをコピー
+  const handleCopyDiscordId = (discordId: string) => {
+    navigator.clipboard.writeText(discordId).then(() => {
+      setCopiedDiscordId(discordId);
+      setTimeout(() => setCopiedDiscordId(null), 2000);
+    });
+  };
+
+  // EOAアドレスをコピー
+  const handleCopyAddress = (address: string) => {
+    navigator.clipboard.writeText(address).then(() => {
+      setCopiedAddress(address);
+      setTimeout(() => setCopiedAddress(null), 2000);
+    });
+  };
 
   return (
     <div className={styles.container}>
@@ -219,15 +276,120 @@ export const CollectionPage: React.FC = () => {
                 <div className={styles.infoItem} style={{ gridColumn: '1 / -1' }}>
                   <span className={styles.infoLabel}>Creators:</span>
                   <div className={styles.infoValue}>
-                    {contractInfo.creators.map((creator, index) => (
-                      <div key={creator} style={{ 
-                        fontFamily: 'monospace', 
-                        fontSize: '0.9em',
-                        marginBottom: index < contractInfo.creators.length - 1 ? '4px' : '0'
-                      }}>
-                        {creator.slice(0, 6)}...{creator.slice(-4)}
-                      </div>
-                    ))}
+                    {contractInfo.creators.map((creator, index) => {
+                      const memberInfo = creatorMembers.get(creator.toLowerCase());
+                      const discordId = memberInfo?.DiscordId || memberInfo?.discord_id;
+                      const discordUsername = memberInfo?.username || memberInfo?.Username;
+                      const avatarUrl = memberInfo?.Icon || memberInfo?.avatar_url;
+                      
+                      return (
+                        <div key={creator} style={{ 
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          marginBottom: index < contractInfo.creators.length - 1 ? '8px' : '0'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
+                            <a
+                              href={`/creator/${creator}`}
+                              style={{
+                                textDecoration: 'none',
+                                color: 'inherit',
+                                fontFamily: 'monospace', 
+                                fontSize: '0.9em'
+                              }}
+                            >
+                              {creator.slice(0, 6)}...{creator.slice(-4)}
+                            </a>
+                            <img
+                              src={copyIcon}
+                              alt="Copy"
+                              width="14"
+                              height="14"
+                              onClick={() => handleCopyAddress(creator)}
+                              style={{
+                                cursor: 'pointer',
+                                opacity: 0.6
+                              }}
+                              title="Copy address"
+                            />
+                            {copiedAddress === creator && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '-28px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                backgroundColor: '#4caf50',
+                                color: 'white',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                whiteSpace: 'nowrap',
+                                pointerEvents: 'none',
+                                zIndex: 1000
+                              }}>
+                                Copied!
+                              </div>
+                            )}
+                          </div>
+                          {discordId && avatarUrl && (
+                            <div style={{ position: 'relative' }}>
+                              <img
+                                src={avatarUrl}
+                                alt={`Discord avatar for ${discordId}`}
+                                style={{
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '50%',
+                                  cursor: 'pointer',
+                                  border: '2px solid #5865F2'
+                                }}
+                                onClick={() => handleCopyDiscordId(discordId)}
+                                title={`Copy Discord ID: ${discordId}`}
+                                onError={(e) => {
+                                  console.error(`Failed to load Discord avatar for ${discordId}:`, avatarUrl);
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                                onLoad={() => {
+                                  console.log(`Successfully loaded Discord avatar for ${discordId}:`, avatarUrl);
+                                }}
+                              />
+                              {copiedDiscordId === discordId && (
+                                <div style={{
+                                  position: 'absolute',
+                                  top: '-28px',
+                                  left: '50%',
+                                  transform: 'translateX(-50%)',
+                                  backgroundColor: '#4caf50',
+                                  color: 'white',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  whiteSpace: 'nowrap',
+                                  pointerEvents: 'none',
+                                  zIndex: 1000
+                                }}>
+                                  Copied!
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {discordUsername && (
+                            <a
+                              href={`/own/${creator}`}
+                              style={{
+                                textDecoration: 'none',
+                                fontSize: '0.8em',
+                                color: '#5865F2',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              @{discordUsername}
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
