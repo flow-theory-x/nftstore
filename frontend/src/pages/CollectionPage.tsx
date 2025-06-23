@@ -160,7 +160,9 @@ export const CollectionPage: React.FC = () => {
             memberMap.set(address.toLowerCase(), info);
             console.log(`📝 Creator ${address}:`, {
               DiscordId: info.DiscordId || info.discord_id,
-              username: info.username || info.Username,
+              Nick: info.Nick || info.nickname,
+              Name: info.Name || info.name,
+              Username: info.Username || info.username,
               Icon: info.Icon,
               avatar_url: info.avatar_url
             });
@@ -279,7 +281,10 @@ export const CollectionPage: React.FC = () => {
                     {contractInfo.creators.map((creator, index) => {
                       const memberInfo = creatorMembers.get(creator.toLowerCase());
                       const discordId = memberInfo?.DiscordId || memberInfo?.discord_id;
-                      const discordUsername = memberInfo?.username || memberInfo?.Username;
+                      // 優先順位: Nick > Name > Username
+                      const displayName = memberInfo?.Nick || memberInfo?.nickname || 
+                                        memberInfo?.Name || memberInfo?.name || 
+                                        memberInfo?.Username || memberInfo?.username;
                       const avatarUrl = memberInfo?.Icon || memberInfo?.avatar_url;
                       
                       return (
@@ -374,7 +379,7 @@ export const CollectionPage: React.FC = () => {
                               )}
                             </div>
                           )}
-                          {discordUsername && (
+                          {displayName && (
                             <a
                               href={`/own/${creator}`}
                               style={{
@@ -384,7 +389,7 @@ export const CollectionPage: React.FC = () => {
                                 fontWeight: 'bold'
                               }}
                             >
-                              @{discordUsername}
+                              @{displayName}
                             </a>
                           )}
                         </div>

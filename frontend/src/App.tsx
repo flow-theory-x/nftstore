@@ -10,6 +10,7 @@ const OwnedTokensPage = lazy(() => import('./pages/OwnedTokensPage').then(module
 const MintPage = lazy(() => import('./pages/MintPage').then(module => ({ default: module.MintPage })));
 const TokenDetailPage = lazy(() => import('./pages/TokenDetailPage').then(module => ({ default: module.TokenDetailPage })));
 const CollectionPage = lazy(() => import('./pages/CollectionPage').then(module => ({ default: module.CollectionPage })));
+const CreatorPage = lazy(() => import('./pages/CreatorPage').then(module => ({ default: module.CreatorPage })));
 
 const AppContent: React.FC = () => {
   const { setRateLimit, incrementRetry } = useRateLimit();
@@ -74,6 +75,11 @@ const AppContent: React.FC = () => {
             <Route path="collection/:contractAddress" element={
               <Suspense fallback={<div>Loading...</div>}>
                 <CollectionPage />
+              </Suspense>
+            } />
+            <Route path="creator/:creatorAddress" element={
+              <Suspense fallback={<div>Loading...</div>}>
+                <CreatorPage />
               </Suspense>
             } />
           </Route>

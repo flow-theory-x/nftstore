@@ -655,6 +655,130 @@ export class NftContractService {
     }
   }
 
+  async getCreatorTokensBatchWithProgress(
+    creator: string,
+    startIndex: number,
+    batchSize: number,
+    onProgress?: (message: string, tokenId?: string) => void,
+    onTokenReady?: (token: NFTToken) => void,
+    forceRefresh: boolean = false
+  ): Promise<{ tokens: NFTToken[]; hasMore: boolean }> {
+    try {
+      
+      // キャッシュキーを作成
+      const cacheKey = `creator_${creator.toLowerCase()}_tokens`;
+      
+      // クリエイターのトークンIDリストをキャッシュから取得または作成
+      let creatorTokenIds = forceRefresh ? null : cacheService.getContractData<string[]>(this.contractAddress, cacheKey);
+      
+      if (!creatorTokenIds) {
+        onProgress?.('Loading creator tokens...');
+        console.log('🎨 Fetching creator tokens for:', creator);
+        
+        // getCreatorTokensを使用してクリエイターのトークンIDリストを取得
+        const rawTokenIds = await this.getCreatorTokens(creator);
+        console.log(`📊 Creator reported ${rawTokenIds.length} tokens`);
+        console.log('🔢 Raw Token IDs (original order):', rawTokenIds.slice(0, 10), '...');
+        
+        // トークンIDを逆順にして最新のものを先に表示（存在チェックは後で行う）
+        creatorTokenIds = rawTokenIds.reverse();
+        console.log('🔢 Valid Token IDs (reversed):', creatorTokenIds.slice(0, 10), '...');
+        
+        // キャッシュに保存（5分間）
+        cacheService.setContractData(this.contractAddress, cacheKey, creatorTokenIds, 5 * 60 * 1000);
+      } else {
+        console.log('📋 Using cached creator token IDs:', creatorTokenIds.length);
+      }
+      
+      // 指定されたバッチ範囲のトークンのみ詳細取得
+      const batchTokenIds = creatorTokenIds.slice(startIndex, startIndex + batchSize);
+      console.log('📦 Batch token IDs:', batchTokenIds);
+      
+      if (batchTokenIds.length === 0) {
+        return { tokens: [], hasMore: false };
+      }
+      
+      const tokens: NFTToken[] = [];
+      
+      // 1件ずつ順次処理して即座に表示
+      for (const tokenId of batchTokenIds) {
+        try {
+          // キャッシュからトークン情報を取得
+          const cachedTokenInfo = cacheService.getTokenInfo(this.contractAddress, tokenId);
+          if (cachedTokenInfo && cachedTokenInfo.owner && cachedTokenInfo.tokenURI) {
+            // キャッシュされた情報からNFTTokenオブジェクトを再構築
+            const cachedToken: NFTToken = {
+              tokenId,
+              owner: cachedTokenInfo.owner,
+              tokenURI: cachedTokenInfo.tokenURI,
+              contractAddress: this.contractAddress,
+              isSbt: cachedTokenInfo.isSbt || false,
+            };
+            tokens.push(cachedToken);
+            onTokenReady?.(cachedToken); // 即座に表示
+            continue;
+          }
+          
+          onProgress?.(`Loading token ${tokenId}...`);
+          
+          // クリエイターページではownerは既知（creator）なので、tokenURIとisSbtのみ取得
+          const [tokenURI, isSbt] = await Promise.all([
+            this.getTokenURI(tokenId).catch((error: any) => {
+              if (error?.message?.includes('missing revert data') || 
+                  error?.code === 'CALL_EXCEPTION') {
+                console.warn(`Token ${tokenId} does not exist, skipping`);
+                return null;
+              }
+              throw error;
+            }),
+            this.getSbtFlag(tokenId).catch((error) => {
+              console.warn(`SBT flag check failed for token ${tokenId}, defaulting to false:`, error.message);
+              return false;
+            })
+          ]);
+          
+          // トークンが存在しない場合はスキップ
+          if (tokenURI === null) {
+            console.warn(`Token ${tokenId} does not exist, skipping`);
+            continue;
+          }
+          
+          const token: NFTToken = {
+            tokenId,
+            owner: creator, // クリエイターが所有者として扱う
+            tokenURI,
+            contractAddress: this.contractAddress,
+            isSbt,
+          };
+          
+          // キャッシュに保存
+          cacheService.setTokenInfo(this.contractAddress, tokenId, {
+            owner: token.owner,
+            tokenURI: token.tokenURI,
+            isSbt: token.isSbt,
+          });
+          
+          tokens.push(token);
+          onTokenReady?.(token); // 即座に表示
+          
+        } catch (error) {
+          console.error(`Failed to fetch token ${tokenId}:`, error);
+          // エラーの場合はスキップして次へ
+        }
+      }
+      
+      onProgress?.('');
+      
+      return {
+        tokens,
+        hasMore: startIndex + batchSize < creatorTokenIds.length,
+      };
+    } catch (error) {
+      console.error("Failed to get creator tokens batch:", error);
+      throw error;
+    }
+  }
+
   async transferFromWithDonation(
     tokenId: string,
     to: string,
@@ -805,11 +929,60 @@ export class NftContractService {
 
   async getSbtFlag(tokenId: string): Promise<boolean> {
     try {
-      const sbtFlag = await (this.contract as any)._sbtFlag(tokenId);
-      return Boolean(sbtFlag);
-    } catch (error) {
-      console.error("Failed to get SBT flag:", error);
-      throw error;
+      // Check cache first
+      const cached = cacheService.getTokenInfo(this.contractAddress, tokenId);
+      if (cached?.isSbt !== undefined) {
+        console.log("📋 Cache HIT: getSbtFlag", tokenId, cached.isSbt);
+        return cached.isSbt;
+      }
+
+      console.log("🔗 Blockchain CALL: getSbtFlag", tokenId);
+      const sbtFlag = await rateLimiter.execute(async () => {
+        return await (this.contract as any)._sbtFlag(tokenId);
+      });
+      
+      const result = Boolean(sbtFlag);
+      
+      // Update cache with SBT flag info
+      const existingInfo = cached || {};
+      cacheService.setTokenInfo(this.contractAddress, tokenId, {
+        ...existingInfo,
+        isSbt: result,
+      });
+      console.log("💾 Cache SET: getSbtFlag", tokenId, result);
+      
+      return result;
+    } catch (error: any) {
+      console.error(`Failed to get SBT flag for token ${tokenId}:`, error);
+      
+      // Provide more specific error context
+      if (error?.reason) {
+        console.error(`Contract error reason: ${error.reason}`);
+      }
+      if (error?.code) {
+        console.error(`Error code: ${error.code}`);
+      }
+      
+      // For some contract versions, _sbtFlag might not exist or token doesn't exist
+      // In this case, we can assume it's a regular NFT (not SBT)
+      if (error?.reason?.includes('function selector not found') || 
+          error?.message?.includes('function selector not found') ||
+          error?.message?.includes('missing revert data') ||
+          error?.code === 'CALL_EXCEPTION') {
+        console.warn(`SBT flag method not available or token invalid for token ${tokenId}, assuming regular NFT. Error: ${error.message}`);
+        
+        // Cache the result as false to avoid repeated calls
+        const cached = cacheService.getTokenInfo(this.contractAddress, tokenId) || {};
+        cacheService.setTokenInfo(this.contractAddress, tokenId, {
+          ...cached,
+          isSbt: false,
+        });
+        
+        return false;
+      }
+      
+      // For other errors, re-throw
+      throw new Error(`Failed to get SBT flag for token ${tokenId}: ${error.message || error}`);
     }
   }
 
