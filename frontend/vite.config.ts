@@ -10,6 +10,26 @@ export default defineConfig({
       include: '**/*.svg?react',
     }),
   ],
+  server: {
+    port: 5173,
+    strictPort: false,
+    proxy: {
+      // CA Casher API のプロキシ設定（開発時のCORS回避用）
+      '/api/ca-casher': {
+        target: 'https://ea7lit5re3.execute-api.ap-northeast-1.amazonaws.com/prod',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/ca-casher/, ''),
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('CA Casher proxy error:', err);
+          });
+          proxy.on('proxyReq', (_proxyReq, req, _res) => {
+            console.log('CA Casher proxy request:', req.method, req.url);
+          });
+        },
+      },
+    },
+  },
   build: {
     rollupOptions: {
       output: {

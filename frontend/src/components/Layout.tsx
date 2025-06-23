@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { WalletConnect } from "./WalletConnect";
-import { RateLimitNotification } from "./RateLimitNotification";
 import { useWallet } from "../hooks/useWallet";
 import {
   COPYRIGHT_YEAR,
@@ -18,6 +17,7 @@ export const Layout: React.FC = () => {
   const { walletState } = useWallet();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [previousAddress, setPreviousAddress] = useState<string | null>(null);
   const mobileNavRef = useRef<HTMLElement>(null);
 
   // URLから現在のcontractAddressを取得
@@ -72,6 +72,17 @@ export const Layout: React.FC = () => {
       localStorage.setItem('currentContractAddress', pathAddress);
     }
   }, [location.pathname]);
+  
+  // ウォレットアドレスの変更を監視してナビゲーションリンクを更新
+  useEffect(() => {
+    if (walletState.address !== previousAddress) {
+      if (previousAddress && walletState.address) {
+        console.log(`🔄 Layout detected wallet switch: ${previousAddress} -> ${walletState.address}`);
+        // ナビゲーションリンクの更新はレンダリング時に自動的に行われる
+      }
+      setPreviousAddress(walletState.address);
+    }
+  }, [walletState.address, previousAddress]);
 
   // ハンバーガーメニュー外をクリックしたら閉じる
   useEffect(() => {
@@ -101,11 +112,27 @@ export const Layout: React.FC = () => {
     // Ownページの場合は特別な処理
     if (basePath === "/own") {
       if (extraPath) {
-        // ログインしている場合は自分のアドレスのみを使用
+        // 現在のウォレットアドレスを使用
         return `${basePath}/${extraPath}`;
       } else {
-        // extraPathがない場合はデフォルトコントラクトアドレスを使用
-        return "/own/" + CONTRACT_ADDRESS;
+        // extraPathがない場合はウォレットが接続されていればそのアドレスを使用
+        if (walletState.isConnected && walletState.address) {
+          return `${basePath}/${walletState.address}`;
+        }
+        return "/collection"; // 未接続の場合はCollectionページへ
+      }
+    }
+    
+    // Creatorページの場合も特別な処理
+    if (basePath === "/creator") {
+      if (extraPath) {
+        return `${basePath}/${extraPath}`;
+      } else {
+        // ウォレットが接続されていればそのアドレスを使用
+        if (walletState.isConnected && walletState.address) {
+          return `${basePath}/${walletState.address}`;
+        }
+        return "/collection"; // 未接続の場合はCollectionページへ
       }
     }
 
@@ -131,8 +158,8 @@ export const Layout: React.FC = () => {
             <Link to={createLink("/collection")} className={styles.navLink}>
               Collection
             </Link>
-            <Link to={createLink("/tokens")} className={styles.navLink}>
-              Tokens
+            <Link to="/collection/creator" className={styles.navLink}>
+              Creators
             </Link>
             {walletState.isConnected && (
               <Link
@@ -178,11 +205,11 @@ export const Layout: React.FC = () => {
               Collection
             </Link>
             <Link 
-              to={createLink("/tokens")} 
+              to="/collection/creator" 
               className={styles.navLink}
               onClick={() => setIsMenuOpen(false)}
             >
-              Tokens
+              Creators
             </Link>
             {walletState.isConnected && (
               <Link
@@ -218,10 +245,8 @@ export const Layout: React.FC = () => {
         </div>
       </header>
       <main className={styles.main}>
-        <RateLimitNotification />
         <Outlet />
       </main>
-      <RateLimitNotification />
       <footer className={styles.footer}>
         <p>
           &copy; {COPYRIGHT_YEAR}{" "}

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { NftContractService } from "../utils/nftContract";
 import { useWallet } from "../hooks/useWallet";
 import { Spinner } from "../components/Spinner";
+import { AddressTypeIcon } from "../components/AddressTypeIcon";
 import { CHAIN_ID, CHAIN_NAME, CURRENCY_SYMBOL } from "../constants";
 import styles from "./MintPage.module.css";
 
@@ -93,10 +94,11 @@ export const MintPage: React.FC = () => {
 
         const [name, maxFeeRateValue] = await Promise.all([namePromise, maxFeeRatePromise]);
         setContractName(name);
-        setMaxFeeRate(maxFeeRateValue);
+        const maxFeeRateNum = Number(maxFeeRateValue);
+        setMaxFeeRate(maxFeeRateNum);
         
         // maxFeeRateが0の場合はfeeRateも0にリセット
-        if (maxFeeRateValue === 0) {
+        if (maxFeeRateNum === 0) {
           setFeeRate(0);
         }
       } catch (err: any) {
@@ -353,15 +355,21 @@ export const MintPage: React.FC = () => {
               <label htmlFor="recipientAddress" className={styles.label}>
                 Recipient Address *
               </label>
-              <input
-                type="text"
-                id="recipientAddress"
-                value={recipientAddress}
-                onChange={(e) => setRecipientAddress(e.target.value)}
-                placeholder="0x..."
-                className={styles.input}
-                required
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="text"
+                  id="recipientAddress"
+                  value={recipientAddress}
+                  onChange={(e) => setRecipientAddress(e.target.value)}
+                  placeholder="0x..."
+                  className={styles.input}
+                  style={{ flex: 1 }}
+                  required
+                />
+                {recipientAddress.trim() && (
+                  <AddressTypeIcon address={recipientAddress.trim()} size="medium" />
+                )}
+              </div>
               <div className={styles.hint}>
                 Enter the wallet address to receive the minted NFT
               </div>
@@ -515,7 +523,7 @@ export const MintPage: React.FC = () => {
 
             {isWrongNetwork && (
               <div className={styles.warning}>
-                Please switch to Polygon network to mint
+                Please switch to {CHAIN_NAME} network to mint
               </div>
             )}
 

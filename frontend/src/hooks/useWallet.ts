@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { WalletService } from '../utils/wallet';
 import type { WalletState } from '../types';
 
 const walletService = new WalletService();
 
 export const useWallet = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [walletState, setWalletState] = useState<WalletState>(() => {
     // Try to restore from localStorage on initial load
     const saved = localStorage.getItem('wallet-state');
@@ -26,8 +29,30 @@ export const useWallet = () => {
 
   const updateWalletState = useCallback((newState: WalletState) => {
     setWalletState(newState);
-    // Save to localStorage
-    localStorage.setItem('wallet-state', JSON.stringify(newState));
+    // Save to localStorage with error handling
+    try {
+      localStorage.setItem('wallet-state', JSON.stringify(newState));
+    } catch (error: any) {
+      if (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+        console.warn('LocalStorage quota exceeded when saving wallet state');
+        // Try to free up space by removing some items
+        try {
+          // Clear some localStorage items to make space
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('temp_')) {
+              localStorage.removeItem(key);
+              break;
+            }
+          }
+          localStorage.setItem('wallet-state', JSON.stringify(newState));
+        } catch (retryError) {
+          console.error('Failed to save wallet state even after cleanup:', retryError);
+        }
+      } else {
+        console.error('Failed to save wallet state:', error);
+      }
+    }
   }, []);
 
   const checkConnection = useCallback(async () => {
@@ -116,14 +141,29 @@ export const useWallet = () => {
       if (accounts.length === 0) {
         disconnectWallet();
       } else {
+        const oldAddress = walletState.address;
+        const newAddress = accounts[0];
+        
         setWalletState(prev => {
           const newState = {
             ...prev,
-            address: accounts[0],
+            address: newAddress,
           };
-          localStorage.setItem('wallet-state', JSON.stringify(newState));
+          try {
+            localStorage.setItem('wallet-state', JSON.stringify(newState));
+          } catch (error: any) {
+            if (error.name === 'QuotaExceededError') {
+              console.warn('Storage quota exceeded when updating wallet state');
+            }
+          }
           return newState;
         });
+        
+        // ウォレットアドレスが変更された場合の処理
+        if (oldAddress && newAddress && oldAddress.toLowerCase() !== newAddress.toLowerCase()) {
+          console.log(`🔄 Wallet switched from ${oldAddress} to ${newAddress}`);
+          handleWalletSwitch(oldAddress, newAddress);
+        }
       }
     };
 
@@ -133,7 +173,13 @@ export const useWallet = () => {
           ...prev,
           chainId: parseInt(chainId, 16),
         };
-        localStorage.setItem('wallet-state', JSON.stringify(newState));
+        try {
+          localStorage.setItem('wallet-state', JSON.stringify(newState));
+        } catch (error: any) {
+          if (error.name === 'QuotaExceededError') {
+            console.warn('Storage quota exceeded when updating chain state');
+          }
+        }
         return newState;
       });
     };
@@ -146,6 +192,46 @@ export const useWallet = () => {
     };
   }, [checkConnection, disconnectWallet]);
 
+  const handleWalletSwitch = useCallback((oldAddress: string, newAddress: string) => {
+    const currentPath = location.pathname;
+    console.log(`🔄 Handling wallet switch on path: ${currentPath}`);
+    
+    // Own ページ（/own/address）にいる場合、新しいアドレスにリダイレクト
+    if (currentPath.startsWith('/own/')) {
+      const pathParts = currentPath.split('/');
+      if (pathParts.length >= 3) {
+        const addressInPath = pathParts[2];
+        
+        // パスのアドレスが旧アドレスと一致する場合、新しいアドレスにリダイレクト
+        if (addressInPath.toLowerCase() === oldAddress.toLowerCase()) {
+          const newPath = `/own/${newAddress}`;
+          console.log(`🔄 Redirecting from ${currentPath} to ${newPath}`);
+          navigate(newPath, { replace: true });
+          return;
+        }
+      }
+    }
+    
+    // Creator ページ（/creator/address）にいる場合の処理
+    if (currentPath.startsWith('/creator/')) {
+      const pathParts = currentPath.split('/');
+      if (pathParts.length >= 3) {
+        const addressInPath = pathParts[2];
+        
+        // パスのアドレスが旧アドレスと一致する場合、新しいアドレスにリダイレクト
+        if (addressInPath.toLowerCase() === oldAddress.toLowerCase()) {
+          const newPath = `/creator/${newAddress}`;
+          console.log(`🔄 Redirecting from ${currentPath} to ${newPath}`);
+          navigate(newPath, { replace: true });
+          return;
+        }
+      }
+    }
+    
+    // その他のページでは特別な処理は行わず、ナビゲーション更新のみ
+    console.log(`ℹ️ Wallet switched but no redirect needed for path: ${currentPath}`);
+  }, [location.pathname, navigate]);
+
   return {
     walletState,
     isLoading,
@@ -153,5 +239,6 @@ export const useWallet = () => {
     connectWallet,
     disconnectWallet,
     getSigner,
+    handleWalletSwitch,
   };
 };

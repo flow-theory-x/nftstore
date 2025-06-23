@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
 import { CHAIN_ID } from "../constants";
 import { WalletIcon, DisconnectWalletIcon } from "../assets/icons";
@@ -7,6 +7,7 @@ import styles from "./WalletConnect.module.css";
 
 export const WalletConnect: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { walletState, isLoading, error, connectWallet, disconnectWallet } =
     useWallet();
 
@@ -49,7 +50,12 @@ export const WalletConnect: React.FC = () => {
             try {
               const result = await connectWallet();
               if (result && result.address) {
-                navigate(`/own/${result.address}`);
+                // 現在のページがホームやCollectionページの場合は Own ページにリダイレクト
+                const currentPath = location.pathname;
+                if (currentPath === '/' || currentPath === '/collection') {
+                  navigate(`/own/${result.address}`);
+                }
+                // その他のページではリダイレクトしない（ユーザーが現在のページに留まる）
               }
             } catch (error) {
               // Error is already handled in useWallet

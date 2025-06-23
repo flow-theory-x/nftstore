@@ -18,6 +18,8 @@ import sendIcon from "../assets/icons/send.svg";
 import backpackIcon from "../assets/icons/backpack.svg";
 import fireIcon from "../assets/icons/fire.svg";
 import { ModelViewer } from "../components/ModelViewer";
+import { AddressTypeIcon } from "../components/AddressTypeIcon";
+import { caCasherClient } from "../utils/caCasherClient";
 import { NFTCard } from "../components/NFTCard";
 import { Spinner } from "../components/Spinner";
 
@@ -40,6 +42,10 @@ export const TokenDetailPage: React.FC = () => {
     "animation" | "external" | "youtube" | "image"
   >("animation");
   const [modelLoadError, setModelLoadError] = useState(false);
+  const [originalTokenInfo, setOriginalTokenInfo] = useState<any>(null);
+  const [loadingOriginalInfo, setLoadingOriginalInfo] = useState(false);
+  const [ownerCreatorName, setOwnerCreatorName] = useState<string>("");
+  const [creatorCreatorName, setCreatorCreatorName] = useState<string>("");
 
   // TBA関連の状態
   const [creatingTBA, setCreatingTBA] = useState(false);
@@ -59,8 +65,19 @@ export const TokenDetailPage: React.FC = () => {
   const [loadingTbaTokens, setLoadingTbaTokens] = useState(false);
   const [creatorAddress, setCreatorAddress] = useState<string | null>(null);
   const [creatorLoading, setCreatorLoading] = useState(true);
+  const [isOwnerTBA, setIsOwnerTBA] = useState(false);
+  const [checkingTBA, setCheckingTBA] = useState(false);
+  const [parentNFTInfo, setParentNFTInfo] = useState<{
+    tokenContract: string;
+    tokenId: string;
+    owner: string;
+  } | null>(null);
+  const [isParentNFTOwner, setIsParentNFTOwner] = useState(false);
 
   const currentContractAddress = contractAddress || CONTRACT_ADDRESS;
+  
+  // このNFTがTBA機能付きかどうか（TBA対象コントラクトかどうか）
+  const hasTBAFeature = isTBAEnabled() && isTBATargetContract(currentContractAddress);
 
   useEffect(() => {
     const fetchTokenDetail = async () => {
@@ -81,16 +98,46 @@ export const TokenDetailPage: React.FC = () => {
         const owner = await contractService.getOwnerOf(tokenId);
         const tokenURI = await contractService.getTokenURI(tokenId);
 
-        // Creator情報とSBTフラグを並行取得
-        const [creator, isSbt] = await Promise.all([
+        // Creator情報、SBTフラグ、OriginalTokenInfoを並行取得
+        const [creator, isSbt, originalInfo] = await Promise.all([
           contractService.getTokenCreator(tokenId).catch(() => null),
           contractService.getSbtFlag(tokenId).catch(() => false),
+          contractService.getOriginalTokenInfo(tokenId).catch((err) => {
+            console.warn("Failed to get original token info:", err);
+            return null;
+          }),
         ]);
 
+        console.log("📋 Original Token Info:", originalInfo);
+        setOriginalTokenInfo(originalInfo);
         setCreatorAddress(creator);
         setCreatorLoading(false);
 
+        // Get creator names for owner and creator
+        if (owner) {
+          try {
+            const ownerName = await caCasherClient.call('getCreatorName', [owner]);
+            if (ownerName && ownerName.trim()) {
+              setOwnerCreatorName(ownerName);
+            }
+          } catch (err) {
+            console.warn("Failed to fetch owner creator name:", err);
+          }
+        }
+
+        if (creator) {
+          try {
+            const creatorName = await caCasherClient.call('getCreatorName', [creator]);
+            if (creatorName && creatorName.trim()) {
+              setCreatorCreatorName(creatorName);
+            }
+          } catch (err) {
+            console.warn("Failed to fetch creator creator name:", err);
+          }
+        }
+
         const tokenData: NFTToken = {
+          id: tokenId,
           tokenId,
           owner,
           tokenURI,
@@ -99,6 +146,41 @@ export const TokenDetailPage: React.FC = () => {
         };
 
         setToken(tokenData);
+
+        // Owner がTBAかどうかを判定
+        setCheckingTBA(true);
+        try {
+          const tbaService = new TbaService();
+          const isTBA = await tbaService.isTBAAccount(owner);
+          setIsOwnerTBA(isTBA);
+
+          // OwnerがTBAの場合、親NFTの情報を取得
+          if (isTBA) {
+            try {
+              const parentToken = await tbaService.getToken(owner);
+              const parentNftService = new NftContractService(parentToken.tokenContract);
+              const parentOwner = await parentNftService.getOwnerOf(parentToken.tokenId);
+              
+              setParentNFTInfo({
+                tokenContract: parentToken.tokenContract,
+                tokenId: parentToken.tokenId,
+                owner: parentOwner
+              });
+
+              // 現在のウォレットが親NFTの所有者かどうかをチェック
+              if (walletState.address && parentOwner.toLowerCase() === walletState.address.toLowerCase()) {
+                setIsParentNFTOwner(true);
+              }
+            } catch (err) {
+              console.warn("Failed to get parent NFT info:", err);
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to check TBA status:", err);
+          setIsOwnerTBA(false);
+        } finally {
+          setCheckingTBA(false);
+        }
 
         // メタデータを取得
         if (tokenURI) {
@@ -220,6 +302,7 @@ export const TokenDetailPage: React.FC = () => {
                     const tokenURI = await contractService.getTokenURI(tokenId);
 
                     tokenDetails.push({
+                      id: tokenId,
                       tokenId,
                       owner,
                       tokenURI,
@@ -558,28 +641,59 @@ export const TokenDetailPage: React.FC = () => {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to burn NFT #${token.tokenId}? This action cannot be undone.`
-    );
+    const confirmMessage = isParentNFTOwner && !isOwner
+      ? `Are you sure you want to burn NFT #${token.tokenId} via parent NFT control? This action cannot be undone.`
+      : `Are you sure you want to burn NFT #${token.tokenId}? This action cannot be undone.`;
 
+    const confirmed = window.confirm(confirmMessage);
     if (!confirmed) return;
 
     try {
       setBurning(true);
-      const contractService = new NftContractService(token.contractAddress);
-      const tx = await contractService.burn(token.tokenId, signer);
+      
+      if (isParentNFTOwner && !isOwner && isOwnerTBA) {
+        // TBA経由でburn
+        console.log("Burning NFT via TBA executeCall...");
+        const { ethers } = await import("ethers");
+        
+        // burn(tokenId)のエンコード
+        const iface = new ethers.Interface([
+          "function burn(uint256 tokenId)"
+        ]);
+        const data = iface.encodeFunctionData("burn", [token.tokenId]);
 
-      alert(`Burn transaction submitted! Hash: ${tx.hash}`);
+        const tbaService = new TbaService();
+        const accountContract = new ethers.Contract(
+          token.owner, // TBA account address
+          await import("../../config/tba_account_abi.json").then(m => m.default),
+          signer
+        );
+        
+        const tx = await (accountContract as any).executeCall(
+          token.contractAddress, // NFT contract address
+          0, // value
+          data // encoded burn call
+        );
 
-      await tx.wait();
-      alert("NFT burned successfully!");
+        alert(`TBA burn transaction submitted! Hash: ${tx.hash}`);
+        await tx.wait();
+        alert("NFT burned successfully via TBA!");
+        
+      } else {
+        // 直接burn
+        console.log("Burning NFT directly...");
+        const contractService = new NftContractService(token.contractAddress);
+        const tx = await contractService.burn(token.tokenId, signer);
 
-      // Clear balance cache for the owner
-      contractService.clearBalanceCache(token.owner);
+        alert(`Burn transaction submitted! Hash: ${tx.hash}`);
+        await tx.wait();
+        alert("NFT burned successfully!");
+      }
 
-      // トークンページに戻る
-      const backLink =
-        token.contractAddress !== CONTRACT_ADDRESS
+      // クリエイターページまたはトークンページに戻る
+      const backLink = creatorAddress 
+        ? `/creator/${creatorAddress}`
+        : token.contractAddress !== CONTRACT_ADDRESS
           ? `/tokens/${token.contractAddress}`
           : "/tokens";
       navigate(backLink);
@@ -662,29 +776,61 @@ export const TokenDetailPage: React.FC = () => {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to transfer NFT #${token.tokenId} to ${recipientAddress}?`
-    );
+    const confirmMessage = isParentNFTOwner && !isOwner
+      ? `Are you sure you want to transfer NFT #${token.tokenId} to ${recipientAddress} via parent NFT control?`
+      : `Are you sure you want to transfer NFT #${token.tokenId} to ${recipientAddress}?`;
 
+    const confirmed = window.confirm(confirmMessage);
     if (!confirmed) return;
 
     try {
       setTransferring(true);
-      const contractService = new NftContractService(token.contractAddress);
-      const tx = await contractService.transfer(
-        token.tokenId,
-        recipientAddress.trim(),
-        signer
-      );
+      
+      if (isParentNFTOwner && !isOwner && isOwnerTBA) {
+        // TBA経由でtransfer
+        console.log("Transferring NFT via TBA executeCall...");
+        const { ethers } = await import("ethers");
+        
+        // safeTransferFrom(from, to, tokenId)のエンコード
+        const iface = new ethers.Interface([
+          "function safeTransferFrom(address from, address to, uint256 tokenId)"
+        ]);
+        const data = iface.encodeFunctionData("safeTransferFrom", [
+          token.owner, // from (TBA address)
+          recipientAddress.trim(), // to
+          token.tokenId
+        ]);
 
-      alert(`Transfer transaction submitted! Hash: ${tx.hash}`);
+        const accountContract = new ethers.Contract(
+          token.owner, // TBA account address
+          await import("../../config/tba_account_abi.json").then(m => m.default),
+          signer
+        );
+        
+        const tx = await (accountContract as any).executeCall(
+          token.contractAddress, // NFT contract address
+          0, // value
+          data // encoded transfer call
+        );
 
-      await tx.wait();
-      alert("NFT transferred successfully!");
+        alert(`TBA transfer transaction submitted! Hash: ${tx.hash}`);
+        await tx.wait();
+        alert("NFT transferred successfully via TBA!");
+        
+      } else {
+        // 直接transfer
+        console.log("Transferring NFT directly...");
+        const contractService = new NftContractService(token.contractAddress);
+        const tx = await contractService.transfer(
+          recipientAddress.trim(),
+          token.tokenId,
+          signer
+        );
 
-      // Clear balance cache for both sender and recipient
-      contractService.clearBalanceCache(token.owner);
-      contractService.clearBalanceCache(recipientAddress.trim());
+        alert(`Transfer transaction submitted! Hash: ${tx.hash}`);
+        await tx.wait();
+        alert("NFT transferred successfully!");
+      }
 
       // モーダルを閉じて、入力をリセット
       setShowTransferModal(false);
@@ -721,16 +867,25 @@ export const TokenDetailPage: React.FC = () => {
             >
               Copy
             </button>
-            <Link
-              to={
-                currentContractAddress !== CONTRACT_ADDRESS
-                  ? `/tokens/${currentContractAddress}`
-                  : "/tokens"
-              }
-              className={styles.backButton}
-            >
-              Back to Tokens
-            </Link>
+            {creatorAddress ? (
+              <Link
+                to={`/creator/${creatorAddress}`}
+                className={styles.backButton}
+              >
+                Back to Creator
+              </Link>
+            ) : (
+              <Link
+                to={
+                  currentContractAddress !== CONTRACT_ADDRESS
+                    ? `/tokens/${currentContractAddress}`
+                    : "/tokens"
+                }
+                className={styles.backButton}
+              >
+                Back to Tokens
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -742,16 +897,25 @@ export const TokenDetailPage: React.FC = () => {
       <div className={styles.container}>
         <div className={styles.error}>
           <p>Token not found</p>
-          <Link
-            to={
-              currentContractAddress !== CONTRACT_ADDRESS
-                ? `/tokens/${currentContractAddress}`
-                : "/tokens"
-            }
-            className={styles.backButton}
-          >
-            Back to Tokens
-          </Link>
+          {creatorAddress ? (
+            <Link
+              to={`/creator/${creatorAddress}`}
+              className={styles.backButton}
+            >
+              Back to Creator
+            </Link>
+          ) : (
+            <Link
+              to={
+                currentContractAddress !== CONTRACT_ADDRESS
+                  ? `/tokens/${currentContractAddress}`
+                  : "/tokens"
+              }
+              className={styles.backButton}
+            >
+              Back to Tokens
+            </Link>
+          )}
         </div>
       </div>
     );
@@ -761,23 +925,44 @@ export const TokenDetailPage: React.FC = () => {
   const isOwner =
     walletState.isConnected &&
     walletState.address?.toLowerCase() === token.owner.toLowerCase();
+  
+  // 親NFT所有者かTBA Owned NFTの場合は、親NFT所有者が操作可能
+  const canControl = isOwner || isParentNFTOwner;
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <Link
-          to={
-            currentContractAddress !== CONTRACT_ADDRESS
-              ? `/tokens/${currentContractAddress}`
-              : "/tokens"
-          }
-          className={styles.backButton}
-        >
-          ← Back to Tokens
-        </Link>
+        {creatorAddress ? (
+          <Link
+            to={`/creator/${creatorAddress}`}
+            className={styles.backButton}
+          >
+            ← Back to Creator
+          </Link>
+        ) : (
+          <Link
+            to={
+              currentContractAddress !== CONTRACT_ADDRESS
+                ? `/tokens/${currentContractAddress}`
+                : "/tokens"
+            }
+            className={styles.backButton}
+          >
+            ← Back to Tokens
+          </Link>
+        )}
         <h1 className={styles.title}>
+          {tbaInfo?.isDeployed && (
+            <div className={styles.tbaIcon}>
+              <img 
+                src={backpackIcon} 
+                alt="TBA Deployed"
+              />
+            </div>
+          )}
           {metadata?.name || `Token #${token.tokenId}`}
           {token.isSbt && <span className={styles.sbtBadge}>SBT</span>}
+          {isOwnerTBA && <span className={styles.tbaBadge}>Owned by TBA</span>}
         </h1>
       </div>
 
@@ -965,7 +1150,7 @@ export const TokenDetailPage: React.FC = () => {
                     className={styles.ownerLink}
                     title={token.owner}
                   >
-                    {formatAddress(token.owner)}
+                    {ownerCreatorName || formatAddress(token.owner)}
                   </Link>
                   <button
                     onClick={() => copyToClipboard(token.owner)}
@@ -976,6 +1161,37 @@ export const TokenDetailPage: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Parent NFT info for TBA owned tokens */}
+              {isOwnerTBA && parentNFTInfo && (
+                <div className={styles.property}>
+                  <span className={styles.propertyLabel}>Parent NFT</span>
+                  <div className={styles.propertyValue}>
+                    <Link
+                      to={`/token/${parentNFTInfo.tokenContract}/${parentNFTInfo.tokenId}`}
+                      className={styles.link}
+                      title={`Token #${parentNFTInfo.tokenId}`}
+                    >
+                      Token #{parentNFTInfo.tokenId}
+                    </Link>
+                    <span style={{ margin: "0 8px", color: "#666" }}>→</span>
+                    <Link
+                      to={
+                        parentNFTInfo.tokenContract !== CONTRACT_ADDRESS
+                          ? `/own/${parentNFTInfo.tokenContract}/${parentNFTInfo.owner}`
+                          : `/own/${parentNFTInfo.owner}`
+                      }
+                      className={styles.ownerLink}
+                      title={parentNFTInfo.owner}
+                    >
+                      {formatAddress(parentNFTInfo.owner)}
+                    </Link>
+                    {isParentNFTOwner && (
+                      <span className={styles.parentOwnerBadge}>You control this NFT</span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Creator information */}
               {creatorLoading ? (
@@ -997,7 +1213,7 @@ export const TokenDetailPage: React.FC = () => {
                       }
                       className={styles.ownerLink}
                     >
-                      {formatAddress(creatorAddress)}
+                      {creatorCreatorName || formatAddress(creatorAddress)}
                     </Link>
                     <button
                       onClick={() => copyToClipboard(creatorAddress)}
@@ -1093,6 +1309,24 @@ export const TokenDetailPage: React.FC = () => {
             </div>
           )}
 
+          {/* Original Token Info Section */}
+          {originalTokenInfo && originalTokenInfo !== "" && (
+            <div className={styles.originalTokenInfo}>
+              <h3>Original Token Information</h3>
+              <div className={styles.originalInfoValue}>
+                {originalTokenInfo}
+                <button
+                  onClick={() => copyToClipboard(originalTokenInfo)}
+                  className={styles.copyButton}
+                  title="Copy Original Token Info"
+                  style={{ marginLeft: "8px" }}
+                >
+                  <img src={copyIcon} alt="Copy" width="14" height="14" />
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className={styles.actions}>
             <a
               href={openSeaUrl}
@@ -1110,7 +1344,7 @@ export const TokenDetailPage: React.FC = () => {
               View on OpenSea
             </a>
 
-            {isOwner && (
+            {canControl && (
               <>
                 {!token.isSbt && (
                   <button
@@ -1126,10 +1360,11 @@ export const TokenDetailPage: React.FC = () => {
                       style={{ marginRight: "8px" }}
                     />
                     {transferring ? "Transferring..." : "Transfer NFT"}
+                    {isParentNFTOwner && !isOwner && " (via Parent NFT)"}
                   </button>
                 )}
 
-                {tbaInfo && tbaInfo.accountAddress && !tbaInfo.isDeployed ? (
+                {isOwner && tbaInfo && tbaInfo.accountAddress && !tbaInfo.isDeployed ? (
                   <button
                     onClick={handleCreateTBA}
                     disabled={creatingTBA}
@@ -1160,6 +1395,7 @@ export const TokenDetailPage: React.FC = () => {
                       style={{ marginRight: "8px" }}
                     />
                     {burning ? "Burning..." : "Burn NFT"}
+                    {isParentNFTOwner && !isOwner && " (via Parent NFT)"}
                   </button>
                 )}
               </>
@@ -1281,13 +1517,19 @@ export const TokenDetailPage: React.FC = () => {
                 <strong>{metadata?.name || `Token #${token?.tokenId}`}</strong>{" "}
                 to:
               </p>
-              <input
-                type="text"
-                placeholder="Recipient address (0x...)"
-                value={recipientAddress}
-                onChange={(e) => setRecipientAddress(e.target.value)}
-                className={styles.addressInput}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="Recipient address (0x...)"
+                  value={recipientAddress}
+                  onChange={(e) => setRecipientAddress(e.target.value)}
+                  className={styles.addressInput}
+                  style={{ flex: 1 }}
+                />
+                {recipientAddress.trim() && (
+                  <AddressTypeIcon address={recipientAddress.trim()} size="medium" />
+                )}
+              </div>
             </div>
             <div className={styles.modalActions}>
               <button

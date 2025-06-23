@@ -760,6 +760,11 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
         "internalType": "string",
         "name": "creatorName",
         "type": "string"

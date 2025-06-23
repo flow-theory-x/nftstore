@@ -98,6 +98,7 @@ contract DonatableNFT is ERC721Enumerable, RoyaltyStandard {
             _isApprovedOrOwner(_msgSender(), tokenId) || msg.sender == _owner,
             "Caller is not owner nor approved"
         );
+        _originalTokenInfo[tokenId] = "";
         _metaUrl[tokenId] = "";
         _burn(tokenId);
     }
@@ -222,9 +223,9 @@ contract DonatableNFT is ERC721Enumerable, RoyaltyStandard {
         return _creatorTokens[creator].length;
     }
 
-    function setCreatorName(string memory creatorName) external {
-        require(_isCreator[msg.sender], "Not a creator");
-        _creatorNames[msg.sender] = creatorName;
+    function setCreatorName(address creator, string memory creatorName) external {
+        require(msg.sender == creator || msg.sender == _owner, "Not a creator or owner");
+        _creatorNames[creator] = creatorName;
     }
 
     function getCreatorName(address creator) external view returns (string memory) {
@@ -250,16 +251,16 @@ contract DonatableNFT is ERC721Enumerable, RoyaltyStandard {
         string memory originalInfo
     ) external returns (uint256) {
         require(msg.sender == _owner || _importers[msg.sender], "Not authorized");
-        
+
         _lastId++;
         uint256 tokenId = _lastId;
         _metaUrl[tokenId] = metaUrl;
         _sbtFlag[tokenId] = sbtFlag;
         _originalTokenInfo[tokenId] = originalInfo;
-        
+
         _mint(to, tokenId);
         _setTokenRoyalty(tokenId, creator, feeRate * 100);
-        
+
         // Track creator
         if (!_isCreator[creator]) {
             _isCreator[creator] = true;
@@ -267,7 +268,7 @@ contract DonatableNFT is ERC721Enumerable, RoyaltyStandard {
         }
         _creatorTokens[creator].push(tokenId);
         _tokenCreator[tokenId] = creator;
-        
+
         return tokenId;
     }
 }

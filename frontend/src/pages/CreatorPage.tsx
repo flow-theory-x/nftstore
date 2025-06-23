@@ -1,38 +1,49 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { NFTCard } from "../components/NFTCard";
 import { Spinner } from "../components/Spinner";
 import { NftContractService } from "../utils/nftContract";
 import { MemberService } from "../utils/memberService";
+import { withCACasher } from "../utils/caCasherClient";
+import { useCreatorPageWalletChange } from "../hooks/useWalletAddressChange";
 import { CONTRACT_ADDRESS } from "../constants";
 import type { NFTToken, MemberInfo } from "../types";
 import styles from "./TokensPage.module.css";
 
 export const CreatorPage: React.FC = () => {
   const { creatorAddress } = useParams<{ creatorAddress?: string }>();
-  const [tokens, setTokens] = useState<NFTToken[]>([]);
+  
+  // ウォレットアドレス切り替え検知
+  useCreatorPageWalletChange();
+  
+  // 表示用のトークン配列（NFTとSBTに分離）
   const [nftTokens, setNftTokens] = useState<NFTToken[]>([]);
   const [sbtTokens, setSbtTokens] = useState<NFTToken[]>([]);
+  
+  // ローディング状態
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [totalCreatorTokens, setTotalCreatorTokens] = useState<number | null>(null);
-  const [initialized, setInitialized] = useState(false);
-  const [creatorName, setCreatorName] = useState<string>("");
-  const [creatorMemberInfo, setCreatorMemberInfo] = useState<MemberInfo | null>(null);
-  const [loadingMessage, setLoadingMessage] = useState<string>("Loading creator tokens...");
   const [currentTokenInfo, setCurrentTokenInfo] = useState<string>("");
-  const [contractInfoLoaded, setContractInfoLoaded] = useState(false);
-  const [forceRefresh, setForceRefresh] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  
+  // エラー状態
+  const [error, setError] = useState<string | null>(null);
+  
+  // クリエイター情報
+  const [creatorMemberInfo, setCreatorMemberInfo] = useState<MemberInfo | null>(null);
+  const [creatorName, setCreatorName] = useState<string>("");
+  
+  // リフレッシュトリガー
+  const [forceRefresh, setForceRefresh] = useState(0);
+  
+  // 現在のバッチインデックス
+  const [currentBatchIndex, setCurrentBatchIndex] = useState(0);
 
   const handleRefresh = () => {
-    // キャッシュをクリアして再取得
-    setTokens([]);
     setNftTokens([]);
     setSbtTokens([]);
-    setInitialized(false);
     setHasMore(true);
+    setCurrentBatchIndex(0);
     setForceRefresh(prev => prev + 1);
   };
 
@@ -45,87 +56,86 @@ export const CreatorPage: React.FC = () => {
     }
   };
 
-  const fetchCreatorTokensBatch = async (startIndex: number) => {
+  const fetchCreatorTokensBatch = useCallback(async (startIndex: number) => {
     try {
       const contractService = new NftContractService(CONTRACT_ADDRESS);
+
+      // まずクリエイターのトークンIDリストを取得
+      const creatorTokenIds = await contractService.getCreatorTokens(creatorAddress!);
+      const endIndex = Math.min(startIndex + 10, creatorTokenIds.length);
       
-      // Track how many tokens were added in this batch
-      let tokensAddedCount = 0;
-
-      const { hasMore: moreTokens } =
-        await contractService.getCreatorTokensBatchWithProgress(
-          creatorAddress!, 
-          startIndex,
-          10, // batchSize
-          setCurrentTokenInfo,
-          (token) => {
-            // Add each token immediately as it's ready and sort by NFT/SBT
-            setTokens((prev) => {
-              // Check for duplicates
-              if (prev.some(existingToken => existingToken.tokenId === token.tokenId)) {
-                return prev;
-              }
-              tokensAddedCount++;
-              return [...prev, token];
+      setCurrentTokenInfo(`Loading tokens ${startIndex + 1}-${endIndex} of ${creatorTokenIds.length}...`);
+      
+      // 1件ずつ取得して即座に表示
+      for (let i = startIndex; i < endIndex; i++) {
+        try {
+          const tokenInfo = await contractService.getTokenInfo(creatorTokenIds[i]);
+          
+          // 即座にUIに反映
+          if (tokenInfo.isSbt) {
+            setSbtTokens(prev => {
+              if (prev.some(existing => existing.tokenId === tokenInfo.tokenId)) return prev;
+              return [...prev, tokenInfo];
             });
-            
-            // Sort into NFT or SBT arrays
-            if (token.isSbt) {
-              setSbtTokens((prev) => {
-                if (prev.some(existingToken => existingToken.tokenId === token.tokenId)) {
-                  return prev;
-                }
-                return [...prev, token];
-              });
-            } else {
-              setNftTokens((prev) => {
-                if (prev.some(existingToken => existingToken.tokenId === token.tokenId)) {
-                  return prev;
-                }
-                return [...prev, token];
-              });
-            }
-          },
-          startIndex === 0 && forceRefresh > 0 // Force refresh on first batch only
-        );
-
+          } else {
+            setNftTokens(prev => {
+              if (prev.some(existing => existing.tokenId === tokenInfo.tokenId)) return prev;
+              return [...prev, tokenInfo];
+            });
+          }
+          
+          setCurrentTokenInfo(`Loading token ${i + 1} of ${creatorTokenIds.length}...`);
+        } catch (error) {
+          console.warn(`Failed to get info for token ${creatorTokenIds[i]}:`, error);
+        }
+      }
+      
       setCurrentTokenInfo("");
-      setHasMore(moreTokens);
-      return { tokensAddedCount, hasMore: moreTokens };
-    } catch (err: any) {
+      const hasMore = endIndex < creatorTokenIds.length;
+      setHasMore(hasMore);
+      return hasMore;
+    } catch (err: unknown) {
       console.error("Failed to fetch creator tokens batch:", err);
       setCurrentTokenInfo("");
       throw err;
     }
-  };
+  }, [creatorAddress, forceRefresh]);
 
   useEffect(() => {
+    if (!creatorAddress) return;
+
     // Reset state when creator address changes
-    setTokens([]);
     setNftTokens([]);
     setSbtTokens([]);
     setLoading(true);
     setError(null);
     setIsLoadingMore(false);
-    setTotalCreatorTokens(null);
-    setInitialized(false);
-    setContractInfoLoaded(false);
     setHasMore(true);
+    setCurrentBatchIndex(0);
+    setCurrentTokenInfo("");
 
-    // Load creator info immediately
+    // Load creator info and start fetching tokens
     const loadCreatorInfo = async () => {
       try {
-        setLoadingMessage("Loading creator information...");
-        const contractService = new NftContractService(CONTRACT_ADDRESS);
         const memberService = new MemberService();
 
-        // Get creator name from contract if set
+        // Get creator name from contract
         try {
-          const name = await contractService.getCreatorName(creatorAddress!);
-          setCreatorName(name || "");
+          const contractCreatorName = await withCACasher(
+            CONTRACT_ADDRESS,
+            'getCreatorName',
+            [creatorAddress!],
+            async () => {
+              const contractService = new NftContractService(CONTRACT_ADDRESS);
+              return await contractService.getCreatorName(creatorAddress!);
+            }
+          );
+          if (contractCreatorName && contractCreatorName.trim()) {
+            setCreatorName(contractCreatorName);
+            console.log("📝 Creator name from contract:", contractCreatorName);
+          }
         } catch (err) {
-          console.warn("Failed to fetch creator name:", err);
-          setCreatorName("");
+          console.warn("Failed to fetch creator name from contract:", err);
         }
 
         // Get member info from Discord API
@@ -144,112 +154,51 @@ export const CreatorPage: React.FC = () => {
           console.warn("Failed to fetch member info:", err);
         }
 
-        // Get total number of tokens created by this creator
-        setLoadingMessage("Getting creator's token count...");
-        const creatorTokenIds = await contractService.getCreatorTokens(creatorAddress!);
-        setTotalCreatorTokens(creatorTokenIds.length);
-        setContractInfoLoaded(true);
         setLoading(false);
+        
+        // Start fetching first batch of tokens
+        setIsLoadingMore(true);
+        await fetchCreatorTokensBatch(0);
+        setIsLoadingMore(false);
 
-      } catch (err: any) {
-        setError(err.message || "Failed to fetch creator info");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to fetch creator info");
         console.error("Failed to fetch creator info:", err);
         setLoading(false);
+        setIsLoadingMore(false);
       }
     };
 
-    if (creatorAddress) {
-      loadCreatorInfo();
-    }
+    loadCreatorInfo();
   }, [creatorAddress, forceRefresh]);
 
-  // Start loading tokens after creator info is loaded
-  useEffect(() => {
-    if (!contractInfoLoaded || totalCreatorTokens === null || totalCreatorTokens === 0 || initialized) return;
-
-    const startLoadingTokens = async () => {
-      try {
-        setIsLoadingMore(true);
-        setLoadingMessage("Loading first batch of tokens...");
-
-        const contractService = new NftContractService(CONTRACT_ADDRESS);
-        const { hasMore: moreTokens } =
-          await contractService.getCreatorTokensBatchWithProgress(
-            creatorAddress!, 
-            0,
-            10, // batchSize
-            setCurrentTokenInfo,
-            (token) => {
-              // Add each token immediately as it's ready and sort by NFT/SBT
-              setTokens((prev) => {
-                // Check for duplicates
-                if (prev.some(existingToken => existingToken.tokenId === token.tokenId)) {
-                  return prev;
-                }
-                return [...prev, token];
-              });
-              
-              // Sort into NFT or SBT arrays
-              if (token.isSbt) {
-                setSbtTokens((prev) => {
-                  if (prev.some(existingToken => existingToken.tokenId === token.tokenId)) {
-                    return prev;
-                  }
-                  return [...prev, token];
-                });
-              } else {
-                setNftTokens((prev) => {
-                  if (prev.some(existingToken => existingToken.tokenId === token.tokenId)) {
-                    return prev;
-                  }
-                  return [...prev, token];
-                });
-              }
-            },
-            forceRefresh > 0 // Force refresh if requested
-          );
-
-        setHasMore(moreTokens);
-        setInitialized(true);
-      } catch (err: any) {
-        setError(err.message || "Failed to fetch creator tokens");
-        console.error("Failed to fetch creator tokens:", err);
-      } finally {
-        setIsLoadingMore(false);
-        setLoadingMessage("");
-      }
-    };
-
-    startLoadingTokens();
-  }, [contractInfoLoaded, totalCreatorTokens, creatorAddress, initialized]);
 
   // Auto-load more tokens
   useEffect(() => {
-    if (!initialized || totalCreatorTokens === null || loading || isLoadingMore || !hasMore) return;
-    if (tokens.length >= totalCreatorTokens) return; // All tokens loaded
+    if (loading || isLoadingMore || !hasMore) return;
 
     const timer = setTimeout(() => {
-      if (loading || isLoadingMore || tokens.length >= totalCreatorTokens! || !hasMore) return;
+      if (loading || isLoadingMore || !hasMore) return;
 
       console.log("🔄 Auto-loading more creator tokens:", {
-        currentTokens: tokens.length,
-        totalTokens: totalCreatorTokens,
-        loading,
-        isLoadingMore,
+        currentBatchIndex,
+        nftTokens: nftTokens.length,
+        sbtTokens: sbtTokens.length,
+        hasMore
       });
 
       const loadMoreTokens = async () => {
         setIsLoadingMore(true);
-        setCurrentTokenInfo("Preparing to load more tokens...");
         try {
-          const result = await fetchCreatorTokensBatch(tokens.length);
-          console.log("✅ Auto-loaded creator tokens:", result.tokensAddedCount);
-        } catch (err: any) {
+          const nextIndex = currentBatchIndex + 10;
+          setCurrentBatchIndex(nextIndex);
+          await fetchCreatorTokensBatch(nextIndex);
+          console.log("✅ Auto-loaded more creator tokens");
+        } catch (err: unknown) {
           console.error("❌ Auto-load failed:", err);
-          setError(err.message || "Failed to fetch more tokens");
+          setError(err instanceof Error ? err.message : "Failed to fetch more tokens");
         } finally {
           setIsLoadingMore(false);
-          setCurrentTokenInfo("");
         }
       };
 
@@ -257,18 +206,31 @@ export const CreatorPage: React.FC = () => {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [tokens.length, totalCreatorTokens, loading, isLoadingMore, initialized, hasMore]);
+  }, [nftTokens.length, sbtTokens.length, loading, isLoadingMore, hasMore, currentBatchIndex]);
 
   const formatCreatorAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
   const getCreatorDisplayName = () => {
-    // 優先順位: Nick > Name > Username > contract creator name
-    return creatorMemberInfo?.Nick || creatorMemberInfo?.nickname ||
+    // 優先順位: getCreatorName > Nick > Name > Username
+    const displayName = creatorName ||
+           creatorMemberInfo?.Nick || creatorMemberInfo?.nickname ||
            creatorMemberInfo?.Name || creatorMemberInfo?.name ||
            creatorMemberInfo?.Username || creatorMemberInfo?.username ||
-           creatorName || "Creator";
+           "Creator";
+    
+    console.log("🏷️ Creator display name calculation:", {
+      creatorName,
+      memberInfo: creatorMemberInfo ? {
+        Nick: creatorMemberInfo.Nick,
+        Name: creatorMemberInfo.Name,
+        Username: creatorMemberInfo.Username
+      } : null,
+      finalDisplayName: displayName
+    });
+    
+    return displayName;
   };
 
   const getPageTitle = () => {
@@ -280,18 +242,18 @@ export const CreatorPage: React.FC = () => {
     return formatCreatorAddress(creatorAddress!);
   };
 
-  if (loading && !contractInfoLoaded) {
+  if (loading) {
     return (
       <div className={styles.container}>
         <h1 className={styles.title}>
           {creatorAddress ? getPageTitle() : "Creator"}
         </h1>
-        <Spinner size="large" text={loadingMessage} />
+        <Spinner size="large" text="Loading creator information..." />
       </div>
     );
   }
 
-  if (error && !contractInfoLoaded) {
+  if (error && nftTokens.length === 0 && sbtTokens.length === 0) {
     return (
       <div className={styles.container}>
         <h1 className={styles.title}>
@@ -334,7 +296,7 @@ export const CreatorPage: React.FC = () => {
     <div className={styles.container}>
       <h1 className={styles.title}>{getPageTitle()}</h1>
 
-      {error && contractInfoLoaded && (
+      {error && (nftTokens.length > 0 || sbtTokens.length > 0) && (
         <div className={styles.error}>
           <p>{error}</p>
           <div className={styles.errorActions}>
@@ -355,12 +317,7 @@ export const CreatorPage: React.FC = () => {
         </div>
       )}
 
-      {totalCreatorTokens === null ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "24px" }}>
-          <Spinner size="medium" />
-          <span>{loadingMessage || "Loading creator information..."}</span>
-        </div>
-      ) : totalCreatorTokens === 0 ? (
+      {nftTokens.length === 0 && sbtTokens.length === 0 && !isLoadingMore && !hasMore ? (
         <div className={styles.empty}>
           <p>This creator has not minted any tokens yet</p>
         </div>
@@ -371,14 +328,14 @@ export const CreatorPage: React.FC = () => {
             style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "space-between" }}
           >
             <span>
-              Loaded: {tokens.length}/{totalCreatorTokens} tokens
+              Loaded: {nftTokens.length + sbtTokens.length} tokens (NFT: {nftTokens.length}, SBT: {sbtTokens.length})
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              {(isLoadingMore || loadingMessage) && (
+              {isLoadingMore && (
                 <>
                   <Spinner size="small" />
                   <span style={{ fontSize: "0.9em", color: "#666" }}>
-                    {currentTokenInfo || loadingMessage || "Loading tokens..."}
+                    {currentTokenInfo || "Loading tokens..."}
                   </span>
                 </>
               )}
@@ -448,7 +405,7 @@ export const CreatorPage: React.FC = () => {
             </div>
           )}
 
-          {tokens.length === 0 && !isLoadingMore && !loadingMessage && (
+          {nftTokens.length === 0 && sbtTokens.length === 0 && !isLoadingMore && hasMore && (
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -461,7 +418,7 @@ export const CreatorPage: React.FC = () => {
             </div>
           )}
 
-          {hasMore && !isLoadingMore && tokens.length > 0 && (
+          {hasMore && !isLoadingMore && (nftTokens.length > 0 || sbtTokens.length > 0) && (
             <Spinner size="medium" text="Loading next batch..." />
           )}
         </>

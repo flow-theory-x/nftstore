@@ -1,10 +1,13 @@
 import { ethers } from "ethers";
-import { CONTRACT_ADDRESS, RPC_URL, DEAD_ADDRESS } from "../constants";
+import { CONTRACT_ADDRESS, RPC_URL } from "../constants";
 import type { NFTToken, ContractInfo } from "../types";
 import contractAbi from "../../config/donaterble_nft_abi.json";
-import { cacheService } from "./cache";
-import { rateLimiter } from "./rateLimiter";
+import { withCACasher } from "./caCasherClient";
 
+/**
+ * NFT Contract Service
+ * Handles all interactions with the NFT smart contract
+ */
 export class NftContractService {
   private provider: ethers.JsonRpcProvider;
   private contract: ethers.Contract;
@@ -19,6 +22,331 @@ export class NftContractService {
       signer || this.provider
     );
   }
+
+  // === BASIC CONTRACT INFO ===
+
+  async getName(): Promise<string> {
+    try {
+      return await withCACasher(
+        this.contractAddress,
+        'name',
+        [],
+        async () => await (this.contract as any).name()
+      );
+    } catch (error) {
+      console.error("Failed to get contract name:", error);
+      throw error;
+    }
+  }
+
+  async getSymbol(): Promise<string> {
+    try {
+      return await withCACasher(
+        this.contractAddress,
+        'symbol',
+        [],
+        async () => await (this.contract as any).symbol()
+      );
+    } catch (error) {
+      console.error("Failed to get contract symbol:", error);
+      throw error;
+    }
+  }
+
+  async getTotalSupply(): Promise<number> {
+    try {
+      const supply = await withCACasher(
+        this.contractAddress,
+        'totalSupply',
+        [],
+        async () => await (this.contract as any).totalSupply()
+      );
+      return Number(supply);
+    } catch (error) {
+      console.error("Failed to get total supply:", error);
+      throw error;
+    }
+  }
+
+  async getContractInfo(): Promise<ContractInfo> {
+    try {
+      const [name, symbol, totalSupply] = await Promise.all([
+        this.getName(),
+        this.getSymbol(),
+        this.getTotalSupply()
+      ]);
+
+      return {
+        address: this.contractAddress,
+        name,
+        symbol,
+        totalSupply
+      };
+    } catch (error) {
+      console.error("Failed to get contract info:", error);
+      throw error;
+    }
+  }
+
+  // === TOKEN OPERATIONS ===
+
+  async getTokenInfo(tokenId: string): Promise<NFTToken> {
+    try {
+      const [tokenURI, owner] = await Promise.all([
+        (this.contract as any).tokenURI(tokenId),
+        this.getTokenOwner(tokenId)
+      ]);
+      
+      if (!tokenURI) {
+        throw new Error('Token URI is empty');
+      }
+
+      const metadata = await this.fetchMetadata(tokenURI);
+
+      return {
+        id: tokenId,
+        tokenId: tokenId,
+        owner,
+        contractAddress: this.contractAddress,
+        tokenURI,
+        ...metadata
+      };
+    } catch (error) {
+      console.error(`Failed to get token info for token ${tokenId}:`, error);
+      throw error;
+    }
+  }
+
+  async getTokenOwner(tokenId: string): Promise<string> {
+    try {
+      const owner = await withCACasher(
+        this.contractAddress,
+        'ownerOf',
+        [tokenId],
+        async () => await (this.contract as any).ownerOf(tokenId)
+      );
+      return owner.toLowerCase();
+    } catch (error) {
+      console.error(`Failed to get owner for token ${tokenId}:`, error);
+      throw error;
+    }
+  }
+
+  async getTokenURI(tokenId: string): Promise<string> {
+    try {
+      return await withCACasher(
+        this.contractAddress,
+        'tokenURI',
+        [tokenId],
+        async () => await (this.contract as any).tokenURI(tokenId)
+      );
+    } catch (error) {
+      console.error(`Failed to get token URI for ${tokenId}:`, error);
+      throw error;
+    }
+  }
+
+  // === TOKEN DISCOVERY ===
+
+  async getAllTokenIds(): Promise<string[]> {
+    try {
+      const totalSupply = await this.getTotalSupply();
+      
+      if (totalSupply === 0) {
+        return [];
+      }
+
+      const tokenIds: string[] = [];
+      for (let i = 0; i < totalSupply; i++) {
+        try {
+          const tokenId = await withCACasher(
+            this.contractAddress,
+            'tokenByIndex',
+            [i.toString()],
+            async () => await (this.contract as any).tokenByIndex(i)
+          );
+          tokenIds.push(tokenId.toString());
+        } catch (indexError) {
+          console.warn(`Failed to get token at index ${i}:`, indexError);
+        }
+      }
+      
+      return tokenIds;
+    } catch (error) {
+      console.error("Failed to get all token IDs:", error);
+      throw error;
+    }
+  }
+
+  async getTokensByOwner(owner: string): Promise<string[]> {
+    try {
+      const balance = await this.getBalanceOf(owner);
+      const balanceNum = parseInt(balance);
+      
+      if (balanceNum === 0) {
+        return [];
+      }
+
+      const tokenIds: string[] = [];
+      for (let i = 0; i < balanceNum; i++) {
+        try {
+          const tokenId = await withCACasher(
+            this.contractAddress,
+            'tokenOfOwnerByIndex',
+            [owner, i.toString()],
+            async () => await (this.contract as any).tokenOfOwnerByIndex(owner, i)
+          );
+          tokenIds.push(tokenId.toString());
+        } catch (error) {
+          console.warn(`Failed to get token at index ${i} for owner ${owner}:`, error);
+        }
+      }
+      
+      return tokenIds;
+    } catch (error) {
+      console.error(`Failed to get tokens for owner ${owner}:`, error);
+      throw error;
+    }
+  }
+
+  async getTokensWithMetadata(tokenIds: string[]): Promise<NFTToken[]> {
+    const tokens: NFTToken[] = [];
+    
+    for (const tokenId of tokenIds) {
+      try {
+        const tokenInfo = await this.getTokenInfo(tokenId);
+        tokens.push(tokenInfo);
+      } catch (error) {
+        console.warn(`Failed to get metadata for token ${tokenId}:`, error);
+      }
+    }
+    
+    return tokens;
+  }
+
+  // === CREATOR OPERATIONS ===
+
+  async getCreators(): Promise<string[]> {
+    try {
+      const creators = await withCACasher(
+        this.contractAddress,
+        'getCreators',
+        [],
+        async () => await (this.contract as any).getCreators()
+      );
+      return creators || [];
+    } catch (error) {
+      console.warn("Contract getCreators() failed, trying fallback methods:", error);
+      try {
+        const owner = await this.getOwner();
+        return owner ? [owner] : [];
+      } catch (ownerError) {
+        console.error("Failed to get creators:", ownerError);
+        return [];
+      }
+    }
+  }
+
+  async getCreatorName(creator: string): Promise<string> {
+    try {
+      return await withCACasher(
+        this.contractAddress,
+        'getCreatorName',
+        [creator],
+        async () => await (this.contract as any).getCreatorName(creator)
+      );
+    } catch (error) {
+      console.error("Failed to get creator name:", error);
+      throw error;
+    }
+  }
+
+  async getTokenCreator(tokenId: string): Promise<string> {
+    try {
+      const creator = await withCACasher(
+        this.contractAddress,
+        'getTokenCreator',
+        [tokenId],
+        async () => await (this.contract as any).getTokenCreator(tokenId)
+      );
+      return creator || "";
+    } catch (error) {
+      console.warn(`Contract getTokenCreator(${tokenId}) failed, trying fallback:`, error);
+      try {
+        const owner = await this.getOwner();
+        return owner || "";
+      } catch (ownerError) {
+        console.error("Failed to get token creator:", ownerError);
+        return "";
+      }
+    }
+  }
+
+  async getCreatorTokens(creator: string): Promise<string[]> {
+    try {
+      const creatorTokenIds = await (this.contract as any).getCreatorTokens(creator);
+      return creatorTokenIds.map((id: any) => id.toString());
+    } catch (error) {
+      console.warn(`Contract getCreatorTokens(${creator}) failed, using fallback method:`, error);
+      // Fallback: get all tokens and filter by creator
+      const allTokenIds = await this.getAllTokenIds();
+      const creatorTokenIds: string[] = [];
+      
+      for (const tokenId of allTokenIds) {
+        try {
+          const tokenCreator = await this.getTokenCreator(tokenId);
+          if (tokenCreator.toLowerCase() === creator.toLowerCase()) {
+            creatorTokenIds.push(tokenId);
+          }
+        } catch (tokenError) {
+          console.warn(`Failed to check creator for token ${tokenId}:`, tokenError);
+        }
+      }
+      
+      return creatorTokenIds;
+    }
+  }
+
+  // === OWNERSHIP & PERMISSIONS ===
+
+  async getOwner(): Promise<string> {
+    try {
+      // Try different owner function names
+      const ownerMethods = ['owner', '_owner', 'getOwner'];
+      
+      for (const method of ownerMethods) {
+        try {
+          const ownerAddress = await (this.contract as any)[method]();
+          return ownerAddress;
+        } catch {
+          continue;
+        }
+      }
+      
+      console.warn("No owner function found in contract");
+      return "";
+    } catch (error) {
+      console.error("Failed to get contract owner:", error);
+      throw error;
+    }
+  }
+
+  async getBalanceOf(owner: string): Promise<string> {
+    try {
+      const balance = await withCACasher(
+        this.contractAddress,
+        'balanceOf',
+        [owner],
+        async () => await (this.contract as any).balanceOf(owner)
+      );
+      return balance.toString();
+    } catch (error) {
+      console.error(`Failed to get balance for ${owner}:`, error);
+      throw error;
+    }
+  }
+
+  // === MINTING ===
 
   async getMintFee(): Promise<string> {
     try {
@@ -40,13 +368,7 @@ export class NftContractService {
   ): Promise<ethers.ContractTransactionResponse> {
     try {
       const contractWithSigner = this.contract.connect(signer);
-
-      let mintFee: string;
-      if (customFee !== undefined) {
-        mintFee = customFee;
-      } else {
-        mintFee = await this.getMintFee();
-      }
+      const mintFee = customFee || await this.getMintFee();
 
       const tx = await (contractWithSigner as any).mint(to, metaUrl, feeRate, sbtFlag, {
         value: ethers.parseEther(mintFee),
@@ -59,526 +381,95 @@ export class NftContractService {
     }
   }
 
-  async getTotalSupply(): Promise<number> {
-    try {
-      return rateLimiter.executeWithRetry(async () => {
-        console.log("🔗 Blockchain CALL: getTotalSupply (no cache)");
-        const supply = await (this.contract as any).totalSupply();
-        const result = Number(supply);
-        console.log("📊 getTotalSupply result:", result);
-        return result;
-      });
-    } catch (error) {
-      console.error("Failed to get total supply:", error);
-      throw error;
-    }
-  }
+  // === TRANSFERS ===
 
-  async getName(): Promise<string> {
-    try {
-      const cached = cacheService.getContractData<string>(this.contractAddress, 'name');
-      if (cached) {
-        console.log("📋 Cache HIT: getName", cached);
-        return cached;
-      }
-
-      return rateLimiter.executeWithRetry(async () => {
-        console.log("🔗 Blockchain CALL: getName");
-        const name = await (this.contract as any).name();
-        
-        // コントラクト名は変わらないので長期間キャッシュ（24時間）
-        cacheService.setContractData(this.contractAddress, 'name', name, 24 * 60 * 60 * 1000);
-        console.log("💾 Cache SET: getName", name);
-        
-        return name;
-      });
-    } catch (error) {
-      console.error("Failed to get contract name:", error);
-      throw error;
-    }
-  }
-
-  async getSymbol(): Promise<string> {
-    try {
-      const cached = cacheService.getContractData<string>(this.contractAddress, 'symbol');
-      if (cached) {
-        console.log("📋 Cache HIT: getSymbol", cached);
-        return cached;
-      }
-
-      return rateLimiter.executeWithRetry(async () => {
-        console.log("🔗 Blockchain CALL: getSymbol");
-        const symbol = await (this.contract as any).symbol();
-        
-        // コントラクトシンボルは変わらないので長期間キャッシュ（24時間）
-        cacheService.setContractData(this.contractAddress, 'symbol', symbol, 24 * 60 * 60 * 1000);
-        console.log("💾 Cache SET: getSymbol", symbol);
-        
-        return symbol;
-      });
-    } catch (error) {
-      console.error("Failed to get contract symbol:", error);
-      throw error;
-    }
-  }
-
-  async getTokenByIndex(index: number): Promise<string> {
-    return rateLimiter.execute(async () => {
-      const tokenId = await (this.contract as any).tokenByIndex(index);
-      return tokenId.toString();
-    });
-  }
-
-  async getTokenURI(tokenId: string): Promise<string> {
-    try {
-      const cached = cacheService.getTokenInfo(this.contractAddress, tokenId);
-      if (cached?.tokenURI) {
-        console.log("📋 Cache HIT: getTokenURI", tokenId, cached.tokenURI);
-        return cached.tokenURI;
-      }
-
-      console.log("🔗 Blockchain CALL: getTokenURI", tokenId);
-      const uri = await rateLimiter.execute(async () => {
-        return await (this.contract as any).tokenURI(tokenId);
-      });
-
-      // Update cache with token info
-      const existingInfo = cached || {};
-      cacheService.setTokenInfo(this.contractAddress, tokenId, {
-        ...existingInfo,
-        tokenURI: uri,
-      });
-      console.log("💾 Cache SET: getTokenURI", tokenId, uri);
-
-      return uri;
-    } catch (error) {
-      console.error("Failed to get token URI:", error);
-      throw error;
-    }
-  }
-
-  async getOwnerOf(tokenId: string): Promise<string> {
-    return rateLimiter.execute(async () => {
-      console.log("🔗 Blockchain CALL: getOwnerOf (no cache)", tokenId);
-      const owner = await (this.contract as any).ownerOf(tokenId);
-      return owner;
-    });
-  }
-
-  async getBalanceOf(owner: string, forceRefresh: boolean = false): Promise<number> {
-    try {
-      const cacheKey = `balance_${owner.toLowerCase()}`;
-      
-      if (!forceRefresh) {
-        const cached = cacheService.getContractData<number>(this.contractAddress, cacheKey);
-        if (cached !== null && cached !== undefined) {
-          console.log("📋 Cache HIT: getBalanceOf", owner, cached);
-          return cached;
-        }
-      } else {
-        console.log("🔄 Cache BYPASS: getBalanceOf", owner);
-      }
-
-      return rateLimiter.execute(async () => {
-        console.log("🔗 Blockchain CALL: getBalanceOf", owner);
-        const balance = await (this.contract as any).balanceOf(owner);
-        const result = Number(balance);
-        
-        // バランスは変わりやすいので短期間キャッシュ（5分）
-        cacheService.setContractData(this.contractAddress, cacheKey, result, 5 * 60 * 1000);
-        console.log("💾 Cache SET: getBalanceOf", owner, result);
-        
-        return result;
-      });
-    } catch (error) {
-      console.error("Failed to get balance:", error);
-      throw error;
-    }
-  }
-
-  // Clear balance cache for specific owner (useful after transfers)
-  clearBalanceCache(owner: string): void {
-    cacheService.clearBalanceCache(this.contractAddress, owner);
-  }
-
-  async getTokenOfOwnerByIndex(owner: string, index: number): Promise<string> {
-    return rateLimiter.execute(async () => {
-      const tokenId = await (this.contract as any).tokenOfOwnerByIndex(
-        owner,
-        index
-      );
-      return tokenId.toString();
-    });
-  }
-
-  async getAllTokens(): Promise<NFTToken[]> {
-    try {
-      const totalSupply = await this.getTotalSupply();
-      const tokens: NFTToken[] = [];
-
-      for (let i = 0; i < totalSupply; i++) {
-        const tokenId = await this.getTokenByIndex(i);
-        const owner = await this.getOwnerOf(tokenId);
-        
-        // BURN済み（dead addressが所有）のトークンはスキップ
-        if (owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
-          console.log(`🔥 Skipping burned token: ${tokenId} (owner: ${owner})`);
-          continue;
-        }
-        
-        const tokenURI = await this.getTokenURI(tokenId);
-        const isSbt = await this.getSbtFlag(tokenId);
-
-        tokens.push({
-          tokenId,
-          owner,
-          tokenURI,
-          contractAddress: this.contractAddress,
-          isSbt,
-        });
-      }
-
-      return tokens;
-    } catch (error) {
-      console.error("Failed to get all tokens:", error);
-      throw error;
-    }
-  }
-
-  async getTokensBatchWithProgress(
-    startIndex: number,
-    batchSize: number,
-    onProgress?: (message: string, tokenId?: string) => void,
-    onTokenReady?: (token: NFTToken) => void
-  ): Promise<{ tokens: NFTToken[]; hasMore: boolean }> {
-    try {
-      const cached = cacheService.getBatchTokens(
-        this.contractAddress,
-        startIndex,
-        batchSize
-      );
-      if (cached) {
-        console.log(
-          "📋 Cache HIT: getTokensBatch",
-          startIndex,
-          batchSize,
-          cached.tokens.length + " tokens"
-        );
-        // Call onTokenReady for each cached token
-        if (onTokenReady) {
-          cached.tokens.forEach(token => onTokenReady(token));
-        }
-        return cached;
-      }
-
-      console.log(
-        "🔗 Blockchain BATCH CALL: getTokensBatch",
-        startIndex,
-        batchSize
-      );
-      
-      // 全トークンIDリストをキャッシュから取得または作成
-      let allTokenIds = cacheService.getContractData<string[]>(this.contractAddress, 'allTokenIds');
-      if (!allTokenIds) {
-        onProgress?.('Fast loading recent tokens...');
-        console.log('🔗 Fast initial load with progress: getting recent tokens only');
-        const totalSupply = await this.getTotalSupply();
-        console.log('📊 Total supply:', totalSupply);
-        
-        // 高速化：最初は最新のトークンIDから逆順で取得
-        const maxTokensToFetch = Math.min(totalSupply, 20); // 最初は20個まで
-        allTokenIds = [];
-        
-        onProgress?.('Loading latest tokens...');
-        // 最新のトークンIDから逆順で取得（最新が最初に表示される）
-        for (let i = totalSupply - 1; i >= Math.max(0, totalSupply - maxTokensToFetch); i--) {
-          try {
-            onProgress?.(`Getting token ID ${totalSupply - i}/${maxTokensToFetch}`);
-            const tokenId = await this.getTokenByIndex(i);
-            allTokenIds.push(tokenId);
-          } catch (error) {
-            console.warn(`Failed to get tokenByIndex(${i}):`, error);
-            // エラーが発生したトークンはスキップして続行
-          }
-        }
-        
-        console.log('🔢 Fast loaded token IDs with progress:', allTokenIds);
-        
-        // 短期間キャッシュ（完全なリストではないので短めに設定）
-        cacheService.setContractData(this.contractAddress, 'allTokenIds', allTokenIds, 2 * 60 * 1000); // 2分
-        
-        // バックグラウンドで全リストを非同期取得
-        this.loadAllTokenIdsInBackground(totalSupply);
-      } else {
-        console.log('📋 Using cached token IDs:', allTokenIds);
-      }
-      
-      // 指定されたバッチ範囲のトークンのみ詳細取得
-      const batchTokenIds = allTokenIds.slice(startIndex, startIndex + batchSize);
-      console.log('📦 Batch token IDs:', batchTokenIds);
-      
-      const tokens: NFTToken[] = [];
-      for (let i = 0; i < batchTokenIds.length; i++) {
-        const tokenId = batchTokenIds[i];
-        onProgress?.('Getting owner info', tokenId);
-        const owner = await this.getOwnerOf(tokenId);
-        
-        // BURN済み（dead addressが所有）のトークンはスキップ
-        if (owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
-          console.log(`🔥 Skipping burned token: ${tokenId} (owner: ${owner})`);
-          continue;
-        }
-        
-        onProgress?.('Getting metadata', tokenId);
-        const tokenURI = await this.getTokenURI(tokenId);
-        const isSbt = await this.getSbtFlag(tokenId);
-
-        const token: NFTToken = {
-          tokenId,
-          owner,
-          tokenURI,
-          contractAddress: this.contractAddress,
-          isSbt,
-        };
-        tokens.push(token);
-        
-        // Call the callback immediately when token is ready
-        onTokenReady?.(token);
-      }
-
-      const result = {
-        tokens,
-        hasMore: startIndex + batchSize < allTokenIds.length,
-      };
-
-      cacheService.setBatchTokens(
-        this.contractAddress,
-        startIndex,
-        batchSize,
-        result
-      );
-      console.log(
-        "💾 Cache SET: getTokensBatch",
-        startIndex,
-        batchSize,
-        tokens.length + " tokens"
-      );
-      return result;
-    } catch (error) {
-      console.error("Failed to get tokens batch:", error);
-      throw error;
-    }
-  }
-
-  async getTokensBatch(
-    startIndex: number,
-    batchSize: number
-  ): Promise<{ tokens: NFTToken[]; hasMore: boolean }> {
-    try {
-      const cached = cacheService.getBatchTokens(
-        this.contractAddress,
-        startIndex,
-        batchSize
-      );
-      if (cached) {
-        console.log(
-          "📋 Cache HIT: getTokensBatch",
-          startIndex,
-          batchSize,
-          cached.tokens.length + " tokens"
-        );
-        return cached;
-      }
-
-      console.log(
-        "🔗 Blockchain BATCH CALL: getTokensBatch",
-        startIndex,
-        batchSize
-      );
-      
-      // 全トークンIDリストをキャッシュから取得または作成
-      let allTokenIds = cacheService.getContractData<string[]>(this.contractAddress, 'allTokenIds');
-      if (!allTokenIds) {
-        console.log('🔗 Fast initial load: getting recent tokens only');
-        const totalSupply = await this.getTotalSupply();
-        console.log('📊 Total supply:', totalSupply);
-        
-        // 高速化：最初のバッチの場合は最新のトークンIDから逆順で取得
-        const maxTokensToFetch = Math.min(totalSupply, 20); // 最初は20個まで
-        allTokenIds = [];
-        
-        // 最新のトークンIDから逆順で取得（最新が最初に表示される）
-        for (let i = totalSupply - 1; i >= Math.max(0, totalSupply - maxTokensToFetch); i--) {
-          try {
-            const tokenId = await this.getTokenByIndex(i);
-            allTokenIds.push(tokenId);
-          } catch (error) {
-            console.warn(`Failed to get tokenByIndex(${i}):`, error);
-            // エラーが発生したトークンはスキップして続行
-          }
-        }
-        
-        console.log('🔢 Fast loaded token IDs:', allTokenIds);
-        
-        // 短期間キャッシュ（完全なリストではないので短めに設定）
-        cacheService.setContractData(this.contractAddress, 'allTokenIds', allTokenIds, 2 * 60 * 1000); // 2分
-        
-        // バックグラウンドで全リストを非同期取得
-        this.loadAllTokenIdsInBackground(totalSupply);
-      } else {
-        console.log('📋 Using cached token IDs:', allTokenIds);
-      }
-      
-      // 指定されたバッチ範囲のトークンのみ詳細取得
-      const batchTokenIds = allTokenIds.slice(startIndex, startIndex + batchSize);
-      console.log('📦 Batch token IDs:', batchTokenIds);
-      
-      const tokens: NFTToken[] = [];
-      for (const tokenId of batchTokenIds) {
-        const owner = await this.getOwnerOf(tokenId);
-        
-        // BURN済み（dead addressが所有）のトークンはスキップ
-        if (owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
-          console.log(`🔥 Skipping burned token: ${tokenId} (owner: ${owner})`);
-          continue;
-        }
-        
-        const tokenURI = await this.getTokenURI(tokenId);
-        const isSbt = await this.getSbtFlag(tokenId);
-
-        tokens.push({
-          tokenId,
-          owner,
-          tokenURI,
-          contractAddress: this.contractAddress,
-          isSbt,
-        });
-      }
-
-      const result = {
-        tokens,
-        hasMore: startIndex + batchSize < allTokenIds.length,
-      };
-
-      cacheService.setBatchTokens(
-        this.contractAddress,
-        startIndex,
-        batchSize,
-        result
-      );
-      console.log(
-        "💾 Cache SET: getTokensBatch",
-        startIndex,
-        batchSize,
-        tokens.length + " tokens"
-      );
-      return result;
-    } catch (error) {
-      console.error("Failed to get tokens batch:", error);
-      throw error;
-    }
-  }
-
-  async getTokensByOwnerWithProgress(
-    owner: string,
-    onProgress?: (message: string, tokenId?: string) => void
-  ): Promise<NFTToken[]> {
-    try {
-      // BURN済み（dead address）のトークンは検索しない
-      if (owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
-        console.log(`🔥 Skipping tokens for burned address: ${owner}`);
-        return [];
-      }
-      
-      onProgress?.('Getting balance...');
-      const balance = await this.getBalanceOf(owner, true); // Force refresh to avoid stale cache
-      const tokens: NFTToken[] = [];
-
-      for (let i = 0; i < balance; i++) {
-        onProgress?.(`Getting token ${i + 1}/${balance}`);
-        try {
-          const tokenId = await this.getTokenOfOwnerByIndex(owner, i);
-        
-          onProgress?.('Getting metadata', tokenId);
-          const tokenURI = await this.getTokenURI(tokenId);
-          const isSbt = await this.getSbtFlag(tokenId);
-
-          tokens.push({
-            tokenId,
-            owner,
-            tokenURI,
-            contractAddress: this.contractAddress,
-            isSbt,
-          });
-        } catch (error) {
-          console.error(`Failed to get token at index ${i} for owner ${owner}:`, error);
-          // Continue with next token instead of failing entirely
-          continue;
-        }
-      }
-
-      // tokenIdの降順でソート（新しいものが最初に表示される）
-      return tokens.sort((a, b) => parseInt(b.tokenId) - parseInt(a.tokenId));
-    } catch (error) {
-      console.error("Failed to get tokens by owner:", error);
-      throw error;
-    }
-  }
-
-  async getTokensByOwner(owner: string): Promise<NFTToken[]> {
-    try {
-      // BURN済み（dead address）のトークンは検索しない
-      if (owner.toLowerCase() === DEAD_ADDRESS.toLowerCase()) {
-        console.log(`🔥 Skipping tokens for burned address: ${owner}`);
-        return [];
-      }
-      
-      const balance = await this.getBalanceOf(owner, true); // Force refresh to avoid stale cache
-      const tokens: NFTToken[] = [];
-
-      for (let i = 0; i < balance; i++) {
-        try {
-          const tokenId = await this.getTokenOfOwnerByIndex(owner, i);
-          const tokenURI = await this.getTokenURI(tokenId);
-          const isSbt = await this.getSbtFlag(tokenId);
-
-          tokens.push({
-            tokenId,
-            owner,
-            tokenURI,
-            contractAddress: this.contractAddress,
-            isSbt,
-          });
-        } catch (error) {
-          console.error(`Failed to get token at index ${i} for owner ${owner}:`, error);
-          // Continue with next token instead of failing entirely
-          continue;
-        }
-      }
-
-      // tokenIdの降順でソート（新しいものが最初に表示される）
-      return tokens.sort((a, b) => parseInt(b.tokenId) - parseInt(a.tokenId));
-    } catch (error) {
-      console.error("Failed to get tokens by owner:", error);
-      throw error;
-    }
-  }
-
-  async burn(
+  async transferFrom(
+    from: string,
+    to: string,
     tokenId: string,
     signer: ethers.JsonRpcSigner
   ): Promise<ethers.ContractTransactionResponse> {
     try {
       const contractWithSigner = this.contract.connect(signer);
+      const tx = await (contractWithSigner as any).transferFrom(from, to, tokenId);
+      return tx;
+    } catch (error) {
+      console.error("Failed to transfer NFT:", error);
+      throw error;
+    }
+  }
 
-      // Check if the signer is the owner of the token
-      const signerAddress = await signer.getAddress();
-      const tokenOwner = await this.getOwnerOf(tokenId);
+  async transfer(
+    to: string,
+    tokenId: string,
+    signer: ethers.JsonRpcSigner
+  ): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const from = await signer.getAddress();
+      return await this.transferFrom(from, to, tokenId, signer);
+    } catch (error) {
+      console.error("Failed to transfer token:", error);
+      throw error;
+    }
+  }
 
-      if (signerAddress.toLowerCase() !== tokenOwner.toLowerCase()) {
-        throw new Error("Only the token owner can burn this NFT");
-      }
+  // === APPROVALS ===
 
+  async approve(
+    to: string,
+    tokenId: string,
+    signer: ethers.JsonRpcSigner
+  ): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const contractWithSigner = this.contract.connect(signer);
+      const tx = await (contractWithSigner as any).approve(to, tokenId);
+      return tx;
+    } catch (error) {
+      console.error("Failed to approve NFT:", error);
+      throw error;
+    }
+  }
+
+  async getApproved(tokenId: string): Promise<string> {
+    try {
+      const approved = await (this.contract as any).getApproved(tokenId);
+      return approved;
+    } catch (error) {
+      console.error(`Failed to get approved address for token ${tokenId}:`, error);
+      throw error;
+    }
+  }
+
+  async setApprovalForAll(
+    operator: string,
+    approved: boolean,
+    signer: ethers.JsonRpcSigner
+  ): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const contractWithSigner = this.contract.connect(signer);
+      const tx = await (contractWithSigner as any).setApprovalForAll(operator, approved);
+      return tx;
+    } catch (error) {
+      console.error("Failed to set approval for all:", error);
+      throw error;
+    }
+  }
+
+  async isApprovedForAll(owner: string, operator: string): Promise<boolean> {
+    try {
+      const isApproved = await (this.contract as any).isApprovedForAll(owner, operator);
+      return isApproved;
+    } catch (error) {
+      console.error(`Failed to check approval for all (${owner} -> ${operator}):`, error);
+      throw error;
+    }
+  }
+
+  // === BURNING ===
+
+  async burn(tokenId: string, signer: ethers.JsonRpcSigner): Promise<ethers.ContractTransactionResponse> {
+    try {
+      const contractWithSigner = this.contract.connect(signer);
       const tx = await (contractWithSigner as any).burn(tokenId);
       return tx;
     } catch (error) {
@@ -587,71 +478,88 @@ export class NftContractService {
     }
   }
 
-  async transfer(
-    tokenId: string,
-    to: string,
-    signer: ethers.JsonRpcSigner
-  ): Promise<ethers.ContractTransactionResponse> {
+  // === UTILITY METHODS ===
+
+  async fetchMetadata(tokenURI: string): Promise<any> {
     try {
-      const contractWithSigner = this.contract.connect(signer);
-
-      // Check if the signer is the owner of the token
-      const signerAddress = await signer.getAddress();
-      const tokenOwner = await this.getOwnerOf(tokenId);
-
-      if (signerAddress.toLowerCase() !== tokenOwner.toLowerCase()) {
-        throw new Error("Only the token owner can transfer this NFT");
+      if (tokenURI.startsWith('http://') || tokenURI.startsWith('https://')) {
+        const response = await fetch(tokenURI);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch metadata: ${response.status}`);
+        }
+        return await response.json();
+      } else if (tokenURI.startsWith('data:application/json;base64,')) {
+        const base64Data = tokenURI.replace('data:application/json;base64,', '');
+        const jsonString = atob(base64Data);
+        return JSON.parse(jsonString);
+      } else {
+        throw new Error('Unsupported tokenURI format');
       }
-
-      // Validate the recipient address
-      if (!ethers.isAddress(to)) {
-        throw new Error("Invalid recipient address");
-      }
-
-      // Use safeTransferFrom for ERC721 transfer
-      const tx = await (contractWithSigner as any).safeTransferFrom(
-        signerAddress,
-        to,
-        tokenId
-      );
-      return tx;
     } catch (error) {
-      console.error("Failed to transfer NFT:", error);
+      console.error("Failed to fetch metadata:", error);
       throw error;
     }
   }
 
-  async safeTransferFromWithDonation(
-    tokenId: string,
-    to: string,
-    signer: ethers.JsonRpcSigner,
-    donationAmount: string
-  ): Promise<ethers.ContractTransactionResponse> {
+  async exists(tokenId: string): Promise<boolean> {
     try {
-      const contractWithSigner = this.contract.connect(signer);
-      const signerAddress = await signer.getAddress();
-      const tokenOwner = await this.getOwnerOf(tokenId);
-
-      if (signerAddress.toLowerCase() !== tokenOwner.toLowerCase()) {
-        throw new Error("Only the token owner can transfer this NFT");
-      }
-
-      if (!ethers.isAddress(to)) {
-        throw new Error("Invalid recipient address");
-      }
-
-      const tx = await (contractWithSigner as any).safeTransferFromWithDonation(
-        signerAddress,
-        to,
-        tokenId,
-        {
-          value: ethers.parseEther(donationAmount)
-        }
-      );
-      return tx;
+      await (this.contract as any).ownerOf(tokenId);
+      return true;
     } catch (error) {
-      console.error("Failed to transfer NFT with donation:", error);
-      throw error;
+      return false;
+    }
+  }
+
+  async supportsInterface(interfaceId: string): Promise<boolean> {
+    try {
+      const supports = await (this.contract as any).supportsInterface(interfaceId);
+      return supports;
+    } catch (error) {
+      console.error(`Failed to check interface support for ${interfaceId}:`, error);
+      return false;
+    }
+  }
+
+  // === BATCH OPERATIONS (for legacy compatibility) ===
+
+  async getTokensBatchWithProgress(
+    startIndex: number,
+    batchSize: number,
+    totalSupply?: number,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<any[] & { hasMore: boolean }> {
+    try {
+      const total = totalSupply || await this.getTotalSupply();
+      const tokens: any[] = [];
+      const endIndex = Math.min(startIndex + batchSize, total);
+      
+      for (let i = startIndex; i < endIndex; i++) {
+        try {
+          const tokenId = await (this.contract as any).tokenByIndex(i);
+          const owner = await this.getTokenOwner(tokenId.toString());
+          const tokenURI = await this.getTokenURI(tokenId.toString());
+          
+          tokens.push({
+            id: tokenId.toString(),
+            tokenId: tokenId.toString(),
+            owner: owner,
+            tokenURI: tokenURI,
+            contractAddress: this.contractAddress
+          });
+
+          if (onProgress) {
+            onProgress(i - startIndex + 1, batchSize);
+          }
+        } catch (indexError) {
+          console.warn(`Failed to get token at index ${i}:`, indexError);
+        }
+      }
+      
+      const hasMore = startIndex + batchSize < total;
+      return Object.assign(tokens, { hasMore });
+    } catch (error) {
+      console.error("Failed to get tokens batch with progress:", error);
+      return Object.assign([], { hasMore: false });
     }
   }
 
@@ -659,460 +567,139 @@ export class NftContractService {
     creator: string,
     startIndex: number,
     batchSize: number,
-    onProgress?: (message: string, tokenId?: string) => void,
-    onTokenReady?: (token: NFTToken) => void,
-    forceRefresh: boolean = false
-  ): Promise<{ tokens: NFTToken[]; hasMore: boolean }> {
+    totalSupply?: number,
+    onProgress?: (current: number, total: number) => void,
+    contractAddress?: string
+  ): Promise<NFTToken[] & { hasMore: boolean }> {
     try {
+      const creatorTokenIds = await this.getCreatorTokens(creator);
+      const creatorTokens: NFTToken[] = [];
+      const endIndex = Math.min(startIndex + batchSize, creatorTokenIds.length);
       
-      // キャッシュキーを作成
-      const cacheKey = `creator_${creator.toLowerCase()}_tokens`;
-      
-      // クリエイターのトークンIDリストをキャッシュから取得または作成
-      let creatorTokenIds = forceRefresh ? null : cacheService.getContractData<string[]>(this.contractAddress, cacheKey);
-      
-      if (!creatorTokenIds) {
-        onProgress?.('Loading creator tokens...');
-        console.log('🎨 Fetching creator tokens for:', creator);
-        
-        // getCreatorTokensを使用してクリエイターのトークンIDリストを取得
-        const rawTokenIds = await this.getCreatorTokens(creator);
-        console.log(`📊 Creator reported ${rawTokenIds.length} tokens`);
-        console.log('🔢 Raw Token IDs (original order):', rawTokenIds.slice(0, 10), '...');
-        
-        // トークンIDを逆順にして最新のものを先に表示（存在チェックは後で行う）
-        creatorTokenIds = rawTokenIds.reverse();
-        console.log('🔢 Valid Token IDs (reversed):', creatorTokenIds.slice(0, 10), '...');
-        
-        // キャッシュに保存（5分間）
-        cacheService.setContractData(this.contractAddress, cacheKey, creatorTokenIds, 5 * 60 * 1000);
-      } else {
-        console.log('📋 Using cached creator token IDs:', creatorTokenIds.length);
-      }
-      
-      // 指定されたバッチ範囲のトークンのみ詳細取得
-      const batchTokenIds = creatorTokenIds.slice(startIndex, startIndex + batchSize);
-      console.log('📦 Batch token IDs:', batchTokenIds);
-      
-      if (batchTokenIds.length === 0) {
-        return { tokens: [], hasMore: false };
-      }
-      
-      const tokens: NFTToken[] = [];
-      
-      // 1件ずつ順次処理して即座に表示
-      for (const tokenId of batchTokenIds) {
+      for (let i = startIndex; i < endIndex; i++) {
         try {
-          // キャッシュからトークン情報を取得
-          const cachedTokenInfo = cacheService.getTokenInfo(this.contractAddress, tokenId);
-          if (cachedTokenInfo && cachedTokenInfo.owner && cachedTokenInfo.tokenURI) {
-            // キャッシュされた情報からNFTTokenオブジェクトを再構築
-            const cachedToken: NFTToken = {
-              tokenId,
-              owner: cachedTokenInfo.owner,
-              tokenURI: cachedTokenInfo.tokenURI,
-              contractAddress: this.contractAddress,
-              isSbt: cachedTokenInfo.isSbt || false,
-            };
-            tokens.push(cachedToken);
-            onTokenReady?.(cachedToken); // 即座に表示
-            continue;
+          const tokenInfo = await this.getTokenInfo(creatorTokenIds[i]);
+          creatorTokens.push(tokenInfo);
+          
+          if (onProgress) {
+            onProgress(i - startIndex + 1, batchSize);
           }
-          
-          onProgress?.(`Loading token ${tokenId}...`);
-          
-          // クリエイターページではownerは既知（creator）なので、tokenURIとisSbtのみ取得
-          const [tokenURI, isSbt] = await Promise.all([
-            this.getTokenURI(tokenId).catch((error: any) => {
-              if (error?.message?.includes('missing revert data') || 
-                  error?.code === 'CALL_EXCEPTION') {
-                console.warn(`Token ${tokenId} does not exist, skipping`);
-                return null;
-              }
-              throw error;
-            }),
-            this.getSbtFlag(tokenId).catch((error) => {
-              console.warn(`SBT flag check failed for token ${tokenId}, defaulting to false:`, error.message);
-              return false;
-            })
-          ]);
-          
-          // トークンが存在しない場合はスキップ
-          if (tokenURI === null) {
-            console.warn(`Token ${tokenId} does not exist, skipping`);
-            continue;
-          }
-          
-          const token: NFTToken = {
-            tokenId,
-            owner: creator, // クリエイターが所有者として扱う
-            tokenURI,
-            contractAddress: this.contractAddress,
-            isSbt,
-          };
-          
-          // キャッシュに保存
-          cacheService.setTokenInfo(this.contractAddress, tokenId, {
-            owner: token.owner,
-            tokenURI: token.tokenURI,
-            isSbt: token.isSbt,
-          });
-          
-          tokens.push(token);
-          onTokenReady?.(token); // 即座に表示
-          
         } catch (error) {
-          console.error(`Failed to fetch token ${tokenId}:`, error);
-          // エラーの場合はスキップして次へ
+          console.warn(`Failed to get info for token ${creatorTokenIds[i]}:`, error);
         }
       }
       
-      onProgress?.('');
+      const hasMore = startIndex + batchSize < creatorTokenIds.length;
+      return Object.assign(creatorTokens, { hasMore });
+    } catch (error) {
+      console.error("Failed to get creator tokens batch with progress:", error);
+      return Object.assign([], { hasMore: false });
+    }
+  }
+
+  async getTokensByOwnerWithProgress(
+    owner: string,
+    onProgress?: (message: string, tokenId?: string) => void,
+    onTokenReady?: (token: NFTToken) => void
+  ): Promise<void> {
+    try {
+      if (onProgress) {
+        onProgress("Getting owned token IDs...");
+      }
       
-      return {
-        tokens,
-        hasMore: startIndex + batchSize < creatorTokenIds.length,
-      };
-    } catch (error) {
-      console.error("Failed to get creator tokens batch:", error);
-      throw error;
-    }
-  }
-
-  async transferFromWithDonation(
-    tokenId: string,
-    to: string,
-    signer: ethers.JsonRpcSigner,
-    donationAmount: string
-  ): Promise<ethers.ContractTransactionResponse> {
-    try {
-      const contractWithSigner = this.contract.connect(signer);
-      const signerAddress = await signer.getAddress();
-      const tokenOwner = await this.getOwnerOf(tokenId);
-
-      if (signerAddress.toLowerCase() !== tokenOwner.toLowerCase()) {
-        throw new Error("Only the token owner can transfer this NFT");
+      const tokenIds = await this.getTokensByOwner(owner);
+      
+      if (onProgress) {
+        onProgress(`Found ${tokenIds.length} tokens, loading details...`);
       }
 
-      if (!ethers.isAddress(to)) {
-        throw new Error("Invalid recipient address");
-      }
-
-      const tx = await (contractWithSigner as any).transferFromWithDonation(
-        signerAddress,
-        to,
-        tokenId,
-        {
-          value: ethers.parseEther(donationAmount)
+      for (let i = 0; i < tokenIds.length; i++) {
+        const tokenId = tokenIds[i];
+        try {
+          if (onProgress) {
+            onProgress("Loading metadata...", tokenId);
+          }
+          
+          const tokenInfo = await this.getTokenInfo(tokenId);
+          
+          if (onTokenReady) {
+            onTokenReady(tokenInfo);
+          }
+          
+          if (onProgress) {
+            onProgress(`Loaded ${i + 1}/${tokenIds.length} tokens`);
+          }
+        } catch (error) {
+          console.warn(`Failed to load token ${tokenId}:`, error);
+          if (onProgress) {
+            onProgress(`Failed to load token ${tokenId}`, tokenId);
+          }
         }
-      );
-      return tx;
-    } catch (error) {
-      console.error("Failed to transfer NFT with donation:", error);
-      throw error;
-    }
-  }
-
-  async transferFromWithCashback(
-    tokenId: string,
-    to: string,
-    signer: ethers.JsonRpcSigner,
-    cashbackAmount: string
-  ): Promise<ethers.ContractTransactionResponse> {
-    try {
-      const contractWithSigner = this.contract.connect(signer);
-      const signerAddress = await signer.getAddress();
-      const tokenOwner = await this.getOwnerOf(tokenId);
-
-      if (signerAddress.toLowerCase() !== tokenOwner.toLowerCase()) {
-        throw new Error("Only the token owner can transfer this NFT");
       }
-
-      if (!ethers.isAddress(to)) {
-        throw new Error("Invalid recipient address");
+      
+      if (onProgress) {
+        onProgress("");
       }
-
-      const tx = await (contractWithSigner as any).transferFromWithCashback(
-        signerAddress,
-        to,
-        tokenId,
-        {
-          value: ethers.parseEther(cashbackAmount)
-        }
-      );
-      return tx;
     } catch (error) {
-      console.error("Failed to transfer NFT with cashback:", error);
-      throw error;
+      console.error("Failed to get tokens by owner with progress:", error);
+      if (onProgress) {
+        onProgress(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
   }
 
-  async getCreators(): Promise<string[]> {
-    try {
-      const creators = await (this.contract as any).getCreators();
-      return creators;
-    } catch (error) {
-      console.error("Failed to get creators:", error);
-      throw error;
-    }
-  }
+  // === LEGACY COMPATIBILITY METHODS ===
 
-  async getCreatorTokens(creator: string): Promise<string[]> {
-    try {
-      const tokenIds = await (this.contract as any).getCreatorTokens(creator);
-      return tokenIds.map((id: any) => id.toString());
-    } catch (error) {
-      console.error("Failed to get creator tokens:", error);
-      throw error;
-    }
-  }
-
-  async getCreatorName(creator: string): Promise<string> {
-    try {
-      const name = await (this.contract as any).getCreatorName(creator);
-      return name;
-    } catch (error) {
-      console.error("Failed to get creator name:", error);
-      throw error;
-    }
-  }
-
-  async setCreatorName(
-    name: string,
-    signer: ethers.JsonRpcSigner
-  ): Promise<ethers.ContractTransactionResponse> {
-    try {
-      const contractWithSigner = this.contract.connect(signer);
-      const tx = await (contractWithSigner as any).setCreatorName(name);
-      return tx;
-    } catch (error) {
-      console.error("Failed to set creator name:", error);
-      throw error;
-    }
-  }
-
-  async getTokenCreator(tokenId: string): Promise<string> {
-    try {
-      const creator = await (this.contract as any).getTokenCreator(tokenId);
-      return creator;
-    } catch (error) {
-      console.error("Failed to get token creator:", error);
-      throw error;
-    }
-  }
-
-  async royaltyInfo(tokenId: string, salePrice: string): Promise<{ receiver: string; royaltyAmount: string }> {
-    try {
-      const [receiver, royaltyAmount] = await (this.contract as any).royaltyInfo(
-        tokenId,
-        ethers.parseEther(salePrice)
-      );
-      return {
-        receiver,
-        royaltyAmount: ethers.formatEther(royaltyAmount)
-      };
-    } catch (error) {
-      console.error("Failed to get royalty info:", error);
-      throw error;
-    }
-  }
-
-  async getMaxFeeRate(): Promise<number> {
-    try {
-      const maxFeeRate = await (this.contract as any)._maxFeeRate();
-      return Number(maxFeeRate);
-    } catch (error) {
-      console.error("Failed to get max fee rate:", error);
-      throw error;
-    }
+  // Aliases for backward compatibility
+  async getOwnerOf(tokenId: string): Promise<string> {
+    return this.getTokenOwner(tokenId);
   }
 
   async getSbtFlag(tokenId: string): Promise<boolean> {
     try {
-      // Check cache first
-      const cached = cacheService.getTokenInfo(this.contractAddress, tokenId);
-      if (cached?.isSbt !== undefined) {
-        console.log("📋 Cache HIT: getSbtFlag", tokenId, cached.isSbt);
-        return cached.isSbt;
-      }
-
-      console.log("🔗 Blockchain CALL: getSbtFlag", tokenId);
-      const sbtFlag = await rateLimiter.execute(async () => {
-        return await (this.contract as any)._sbtFlag(tokenId);
-      });
-      
-      const result = Boolean(sbtFlag);
-      
-      // Update cache with SBT flag info
-      const existingInfo = cached || {};
-      cacheService.setTokenInfo(this.contractAddress, tokenId, {
-        ...existingInfo,
-        isSbt: result,
-      });
-      console.log("💾 Cache SET: getSbtFlag", tokenId, result);
-      
-      return result;
-    } catch (error: any) {
-      console.error(`Failed to get SBT flag for token ${tokenId}:`, error);
-      
-      // Provide more specific error context
-      if (error?.reason) {
-        console.error(`Contract error reason: ${error.reason}`);
-      }
-      if (error?.code) {
-        console.error(`Error code: ${error.code}`);
-      }
-      
-      // For some contract versions, _sbtFlag might not exist or token doesn't exist
-      // In this case, we can assume it's a regular NFT (not SBT)
-      if (error?.reason?.includes('function selector not found') || 
-          error?.message?.includes('function selector not found') ||
-          error?.message?.includes('missing revert data') ||
-          error?.code === 'CALL_EXCEPTION') {
-        console.warn(`SBT flag method not available or token invalid for token ${tokenId}, assuming regular NFT. Error: ${error.message}`);
-        
-        // Cache the result as false to avoid repeated calls
-        const cached = cacheService.getTokenInfo(this.contractAddress, tokenId) || {};
-        cacheService.setTokenInfo(this.contractAddress, tokenId, {
-          ...cached,
-          isSbt: false,
-        });
-        
-        return false;
-      }
-      
-      // For other errors, re-throw
-      throw new Error(`Failed to get SBT flag for token ${tokenId}: ${error.message || error}`);
-    }
-  }
-
-  async getContractInfo(): Promise<ContractInfo> {
-    try {
-      // The new contract doesn't have getInfo, so we'll use individual getters
-      const owner = await (this.contract as any)._owner();
-      const maxFeeRate = await (this.contract as any)._maxFeeRate();
-      
-      return {
-        creator: owner,
-        feeRate: maxFeeRate.toString(),
-        creatorOnly: false, // This field doesn't exist in the new contract
-      };
+      return await (this.contract as any)._sbtFlag(tokenId);
     } catch (error) {
-      console.error("Failed to get contract info:", error);
-      throw error;
+      return false;
     }
   }
 
-  async config(
-    maxFeeRate: number,
-    mintFee: string,
-    newName: string,
-    newSymbol: string,
-    signer: ethers.JsonRpcSigner
-  ): Promise<ethers.ContractTransactionResponse> {
+  async getOriginalTokenInfo(tokenId: string): Promise<any> {
     try {
-      const contractWithSigner = this.contract.connect(signer);
-      const tx = await (contractWithSigner as any).config(
-        maxFeeRate,
-        ethers.parseEther(mintFee),
-        newName,
-        newSymbol
+      const originalInfo = await withCACasher(
+        this.contractAddress,
+        '_originalTokenInfo',
+        [tokenId],
+        async () => await (this.contract as any)._originalTokenInfo(tokenId)
       );
-      return tx;
+      return originalInfo;
     } catch (error) {
-      console.error("Failed to configure contract:", error);
-      throw error;
-    }
-  }
-
-  // バックグラウンドで全トークンIDリストを非同期取得
-  private async loadAllTokenIdsInBackground(totalSupply: number): Promise<void> {
-    // 既に完全なリストが存在する場合はスキップ
-    const fullListKey = 'allTokenIds_full';
-    const existingFullList = cacheService.getContractData<string[]>(this.contractAddress, fullListKey);
-    if (existingFullList && existingFullList.length >= totalSupply) {
-      console.log('📋 Full token list already exists, skipping background load');
-      return;
-    }
-
-    console.log('🔄 Starting background load of all token IDs...');
-    
-    // 非同期でバックグラウンド処理
-    setTimeout(async () => {
-      try {
-        const allTokenIds: string[] = [];
-        const batchSize = 10;
-        
-        for (let i = 0; i < totalSupply; i += batchSize) {
-          const batch = Array.from(
-            { length: Math.min(batchSize, totalSupply - i) },
-            (_, index) => i + index
-          );
-          
-          const results = await Promise.allSettled(
-            batch.map(async (index) => {
-              try {
-                return await this.getTokenByIndex(index);
-              } catch {
-                return null;
-              }
-            })
-          );
-          
-          results.forEach((result, idx) => {
-            if (result.status === 'fulfilled' && result.value) {
-              allTokenIds.push(result.value);
-            }
-          });
-          
-          // バックグラウンド処理なのでゆっくりと
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        
-        // トークンIDで降順ソート（最新が最初）
-        allTokenIds.sort((a, b) => parseInt(b) - parseInt(a));
-        console.log('✅ Background load completed. Total tokens:', allTokenIds.length);
-        
-        // 完全なリストとして長期間キャッシュ
-        cacheService.setContractData(this.contractAddress, fullListKey, allTokenIds, 30 * 60 * 1000); // 30分
-        cacheService.setContractData(this.contractAddress, 'allTokenIds', allTokenIds, 30 * 60 * 1000); // 通常キャッシュも更新
-        
-      } catch (error) {
-        console.error('Background token loading failed:', error);
-      }
-    }, 1000); // 1秒後に開始
-  }
-
-  async fetchMetadata(tokenURI: string): Promise<any> {
-    try {
-      const cached = cacheService.getTokenMetadata(tokenURI);
-      if (cached) {
-        console.log(
-          "📋 Cache HIT: fetchMetadata",
-          tokenURI.substring(0, 50) + "..."
-        );
-        return cached;
-      }
-
-      console.log(
-        "🌐 HTTP CALL: fetchMetadata",
-        tokenURI.substring(0, 50) + "..."
-      );
-      const response = await fetch(tokenURI);
-      if (!response.ok) {
-        throw new Error("Failed to fetch metadata");
-      }
-      const metadata = await response.json();
-      cacheService.setTokenMetadata(tokenURI, metadata);
-      console.log(
-        "💾 Cache SET: fetchMetadata",
-        tokenURI.substring(0, 50) + "...",
-        metadata.name || "Untitled"
-      );
-      return metadata;
-    } catch (error) {
-      console.error("Failed to fetch metadata:", error);
+      console.error(`Failed to get original token info for token ${tokenId}:`, error);
       return null;
     }
   }
+
+  async getMaxFeeRate(): Promise<string> {
+    try {
+      const maxFeeRate = await (this.contract as any)._maxFeeRate();
+      return maxFeeRate.toString();
+    } catch (error) {
+      return "1000"; // Default 10%
+    }
+  }
+
+  // === GETTERS ===
+
+  getProvider(): ethers.JsonRpcProvider {
+    return this.provider;
+  }
+
+  getContract(): ethers.Contract {
+    return this.contract;
+  }
+
+  getContractAddress(): string {
+    return this.contractAddress;
+  }
 }
+
+export const nftContract = new NftContractService();

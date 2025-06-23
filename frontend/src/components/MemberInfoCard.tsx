@@ -3,6 +3,7 @@ import type { MemberInfo, NFTToken } from "../types";
 import { Spinner } from "./Spinner";
 import { NFTCard } from "./NFTCard";
 import { NftContractService } from "../utils/nftContract";
+import discordIcon from "../assets/icons/discord.png";
 import styles from "./MemberInfoCard.module.css";
 
 interface MemberInfoCardProps {
@@ -12,6 +13,7 @@ interface MemberInfoCardProps {
   isTbaAccount?: boolean;
   tbaSourceNFT?: NFTToken | null;
   tbaCheckLoading?: boolean;
+  creatorName?: string;
 }
 
 export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
@@ -21,6 +23,7 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
   isTbaAccount = false,
   tbaSourceNFT = null,
   tbaCheckLoading = false,
+  creatorName = "",
 }) => {
   const formatDate = (dateString?: string) => {
     if (!dateString) return "Unknown";
@@ -33,6 +36,15 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      console.log('📋 Copied to clipboard:', text);
+    } catch (err) {
+      console.error('❌ Failed to copy to clipboard:', err);
+    }
   };
 
   // NFT metadata state for TBA avatar
@@ -200,44 +212,99 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
 
         <div className={styles.content}>
           <div className={styles.infoGrid}>
-            {tbaSourceNFT && (
-              <>
-                <div className={styles.field}>
-                  <span className={styles.label}>Source NFT ID</span>
-                  <span className={styles.value}>
-                    {formatAddress(tbaSourceNFT.contractAddress)} #
-                    {tbaSourceNFT.tokenId}
-                  </span>
-                </div>
-
-                <div className={styles.field}>
-                  <span className={styles.label}>Source Contract</span>
-                  <span className={styles.value}>
-                    {formatAddress(tbaSourceNFT.contractAddress)}
-                  </span>
-                </div>
-
-                <div className={styles.field}>
-                  <span className={styles.label}>NFT Owner</span>
-                  <span className={styles.value}>
-                    {formatAddress(tbaSourceNFT.owner)}
-                  </span>
-                </div>
-              </>
-            )}
-
             <div className={styles.field}>
               <span className={styles.label}>Account Type</span>
               <span className={styles.value}>
                 Token Bound Account (ERC-6551)
               </span>
             </div>
+
+            {tbaSourceNFT && (
+              <>
+                <div className={styles.field}>
+                  <span className={styles.label}>Source NFT ID</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span 
+                      className={styles.value} 
+                      style={{ color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }}
+                      onClick={() => window.location.href = `/token/${tbaSourceNFT.contractAddress}/${tbaSourceNFT.tokenId}`}
+                    >
+                      {formatAddress(tbaSourceNFT.contractAddress)} #
+                      {tbaSourceNFT.tokenId}
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(`${tbaSourceNFT.contractAddress}#${tbaSourceNFT.tokenId}`)}
+                      className={styles.copyButton}
+                      title="Copy NFT ID"
+                      style={{
+                        background: 'none',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px',
+                        padding: '4px 8px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        color: '#666'
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <div className={styles.field}>
+                  <span className={styles.label}>NFT Owner</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span 
+                      className={styles.value}
+                      style={{ color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }}
+                      onClick={() => window.location.href = `/own/${tbaSourceNFT.owner}`}
+                    >
+                      {formatAddress(tbaSourceNFT.owner)}
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(tbaSourceNFT.owner)}
+                      className={styles.copyButton}
+                      title="Copy owner address"
+                      style={{
+                        background: 'none',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px',
+                        padding: '4px 8px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        color: '#666'
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* アドレス情報は下部に強調表示 */}
           <div className={styles.addressSection}>
             <span className={styles.addressLabel}>TBA Address</span>
-            <span className={styles.addressValue}>{address}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className={styles.addressValue}>{address}</span>
+              <button
+                onClick={() => copyToClipboard(address)}
+                className={styles.copyButton}
+                title="Copy TBA address"
+                style={{
+                  background: 'none',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  color: '#666'
+                }}
+              >
+                Copy
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -248,27 +315,29 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
     <div className={styles.card}>
       <div className={styles.header}>
         <div className={styles.profileSection}>
-          {(memberInfo.Icon || memberInfo.avatar_url) && (
-            <div className={styles.avatarContainer}>
-              <img
-                src={memberInfo.Icon || memberInfo.avatar_url}
-                alt={
-                  memberInfo.Nick ||
-                  memberInfo.Name ||
-                  memberInfo.nickname ||
-                  memberInfo.username ||
-                  "Member"
+          <div className={styles.avatarContainer}>
+            <img
+              src={memberInfo.Icon || memberInfo.avatar_url || discordIcon}
+              alt={
+                memberInfo.Nick ||
+                memberInfo.Name ||
+                memberInfo.nickname ||
+                memberInfo.username ||
+                "Member"
+              }
+              className={styles.avatar}
+              onError={(e) => {
+                if (e.currentTarget.src !== discordIcon) {
+                  console.error('Failed to load Discord avatar, using default icon');
+                  e.currentTarget.src = discordIcon;
                 }
-                className={styles.avatar}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
-            </div>
-          )}
+              }}
+            />
+          </div>
           <div className={styles.nameSection}>
             <h3 className={styles.displayName}>
-              {memberInfo.Nick ||
+              {creatorName ||
+                memberInfo.Nick ||
                 memberInfo.Name ||
                 memberInfo.nickname ||
                 memberInfo.username ||
@@ -293,65 +362,66 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
 
       <div className={styles.content}>
         <div className={styles.infoGrid}>
-          <div className={styles.field}>
-            <span className={styles.label}>Member Status</span>
-            <span className={styles.value}>
-              {memberInfo.DeleteFlag || memberInfo.deleted
-                ? "Deleted"
-                : !(memberInfo.Expired || memberInfo.expires_at) ||
-                  new Date(memberInfo.Expired || memberInfo.expires_at!) >
-                    new Date()
-                ? "Active"
-                : "Expired"}
-            </span>
-          </div>
-
-          {(memberInfo.DiscordId || memberInfo.discord_id) && (
-            <div className={styles.field}>
-              <span className={styles.label}>Discord ID</span>
-              <span className={styles.value}>
-                {memberInfo.DiscordId || memberInfo.discord_id}
-              </span>
-            </div>
-          )}
-
           {(memberInfo.Roles || memberInfo.roles) &&
             Array.isArray(memberInfo.Roles || memberInfo.roles) &&
             (memberInfo.Roles || memberInfo.roles)!.length > 0 && (
               <div className={styles.field}>
                 <span className={styles.label}>Roles</span>
                 <div className={styles.rolesContainer}>
-                  {(memberInfo.Roles || memberInfo.roles)!
-                    .slice(0, 3)
-                    .map((role: any, index: number) => (
-                      <span key={index} className={styles.roleBadge}>
-                        {typeof role === "object" ? role.name || role.id : role}
+                  {(memberInfo.Roles || memberInfo.roles)!.map((role: any, index: number) => {
+                    const roleName = typeof role === "object" ? role.name || role.id : role;
+                    const roleColor = typeof role === "object" && role.color && role.color !== 0 ? `#${role.color.toString(16).padStart(6, '0')}` : undefined;
+                    
+                    console.log('🎨 Role rendering:', {
+                      role,
+                      roleName,
+                      roleColor,
+                      originalColor: role.color,
+                      roleType: typeof role
+                    });
+                    
+                    return (
+                      <span 
+                        key={index} 
+                        className={styles.roleBadge}
+                        style={roleColor ? {
+                          backgroundColor: roleColor + '20',
+                          color: roleColor,
+                          border: `1px solid ${roleColor}40`
+                        } : undefined}
+                      >
+                        {roleName}
                       </span>
-                    ))}
-                  {(memberInfo.Roles || memberInfo.roles)!.length > 3 && (
-                    <span className={styles.moreRoles}>
-                      +{(memberInfo.Roles || memberInfo.roles)!.length - 3} more
-                    </span>
-                  )}
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-          {(memberInfo.Expired || memberInfo.expires_at) && (
+          {(memberInfo.DiscordId || memberInfo.discord_id) && (
             <div className={styles.field}>
-              <span className={styles.label}>Valid Until</span>
-              <span className={styles.value}>
-                {formatDate(memberInfo.Expired || memberInfo.expires_at)}
-              </span>
-            </div>
-          )}
-
-          {(memberInfo.Updated || memberInfo.updated_at) && (
-            <div className={styles.field}>
-              <span className={styles.label}>Last Updated</span>
-              <span className={styles.value}>
-                {formatDate(memberInfo.Updated || memberInfo.updated_at)}
-              </span>
+              <span className={styles.label}>Discord ID</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className={styles.value}>
+                  {memberInfo.DiscordId || memberInfo.discord_id}
+                </span>
+                <button
+                  onClick={() => copyToClipboard(memberInfo.DiscordId || memberInfo.discord_id || "")}
+                  className={styles.copyButton}
+                  title="Copy Discord ID"
+                  style={{
+                    background: 'none',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '4px 8px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    color: '#666'
+                  }}
+                >
+                  Copy
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -359,8 +429,35 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
         {/* アドレス情報は下部に強調表示 */}
         <div className={styles.addressSection}>
           <span className={styles.addressLabel}>Wallet Address</span>
-          <span className={styles.addressValue}>{address}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className={styles.addressValue}>{address}</span>
+            <button
+              onClick={() => copyToClipboard(address)}
+              className={styles.copyButton}
+              title="Copy wallet address"
+              style={{
+                background: 'none',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                color: '#666'
+              }}
+            >
+              Copy
+            </button>
+          </div>
         </div>
+
+        {(memberInfo.joinedAt || memberInfo.joined_at) && (
+          <div className={styles.field} style={{ marginTop: '1rem' }}>
+            <span className={styles.label}>Joined At</span>
+            <span className={styles.value}>
+              {formatDate(memberInfo.joinedAt || memberInfo.joined_at)}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

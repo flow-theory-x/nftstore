@@ -1,7 +1,6 @@
 import { ethers } from "ethers";
 import type { MemberInfo } from "../types";
-
-const MEMBER_API_BASE_URL = "https://ehfm6q914a.execute-api.ap-northeast-1.amazonaws.com/member";
+import { MEMBER_API_BASE_URL } from "../constants";
 
 export class MemberService {
   /**
@@ -14,7 +13,15 @@ export class MemberService {
         console.log(`🔍 Lowercase address: ${address.toLowerCase()}`);
         console.log(`🔍 Checksum address: ${this.toChecksumAddress(address)}`);
         
-        // チェックサム形式のアドレスを試行（まず元のアドレスで試す）
+        // 新旧APIの判定
+        const isNewAPI = MEMBER_API_BASE_URL.includes('web3.bon-soleil.com');
+        
+        if (isNewAPI) {
+          // 新API用の処理
+          return await this.getMemberInfoFromNewAPI(address);
+        }
+        
+        // 旧API用の処理（既存のコード）
         const addressesToTry = [
           address,
           address.toLowerCase(),
@@ -70,6 +77,91 @@ export class MemberService {
       console.error(`❌ Failed to fetch member info for ${address}:`, error);
       return null;
     }
+  }
+  
+  /**
+   * 新API用のメンバー情報取得
+   */
+  private async getMemberInfoFromNewAPI(address: string): Promise<MemberInfo | null> {
+    try {
+      const addressesToTry = [
+        address,
+        address.toLowerCase(),
+        this.toChecksumAddress(address),
+      ];
+      
+      const uniqueAddresses = [...new Set(addressesToTry)];
+      
+      for (const addr of uniqueAddresses) {
+        console.log(`🔍 Trying address with new API: ${addr}`);
+        const response = await fetch(`${MEMBER_API_BASE_URL}/discord/eoa/${addr}`);
+        
+        console.log(`📡 New API Response status: ${response.status} for ${addr}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`📋 Raw new API response for ${addr}:`, data);
+          
+          // 新APIからのレスポンスをマッピング
+          if (data.discord_member) {
+            const mapped = this.mapNewAPIResponse(address, data);
+            console.log(`✅ Member info mapped from new API:`, mapped);
+            return mapped;
+          }
+        } else if (response.status === 404) {
+          const errorData = await response.json();
+          console.log(`📋 Member not found in new API (404) for ${addr}:`, errorData);
+          continue;
+        }
+      }
+      
+      console.log(`📋 Member not found in new API for: ${address}`);
+      return null;
+    } catch (error) {
+      console.error(`❌ Failed to fetch from new API for ${address}:`, error);
+      return null;
+    }
+  }
+  
+  /**
+   * 新APIレスポンスを既存のMemberInfo形式にマッピング
+   */
+  private mapNewAPIResponse(address: string, data: any): MemberInfo {
+    const discordMember = data.discord_member || {};
+    const registrationInfo = data.registration_info || {};
+    
+    return {
+      address: address,
+      
+      // 新API形式のフィールド（大文字）
+      DeleteFlag: false, // 新APIには削除フラグなし -> デフォルトfalse
+      DiscordId: discordMember.user_id || '',
+      Icon: discordMember.avatar_url || '',
+      Roles: discordMember.roles || [], // オブジェクト全体を保持
+      Expired: 'EMPTY', // 新APIには有効期限なし
+      Eoa: data.eoa_address || address,
+      Nick: discordMember.display_name || discordMember.username || '',
+      PartitionName: 'EMPTY', // 新APIにはパーティション名なし
+      Updated: 'EMPTY', // 新APIには更新日時なし
+      Name: discordMember.display_name || discordMember.username || '',
+      Username: discordMember.username || '',
+      
+      // レガシーフィールド（小文字）
+      name: discordMember.display_name || discordMember.username || '',
+      email: 'EMPTY', // 新APIにはメールなし
+      role: discordMember.roles?.[0]?.name || '',
+      joinedAt: discordMember.joined_at || '',
+      joined_at: discordMember.joined_at || '',
+      status: registrationInfo.verified ? 'active' : 'pending',
+      deleted: false,
+      discord_id: discordMember.user_id || '',
+      avatar_url: discordMember.avatar_url || '',
+      nickname: discordMember.display_name || '',
+      username: discordMember.username || '',
+      roles: discordMember.roles || [],
+      expires_at: 'EMPTY',
+      updated_at: 'EMPTY',
+    };
   }
 
   /**

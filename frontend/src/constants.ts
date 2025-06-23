@@ -32,6 +32,7 @@ export const MODEL_VIEWER_BASE_URL = import.meta.env.VITE_MODEL_VIEWER_BASE_URL 
 // TBA (Token Bound Account) configuration
 export const TBA_REGISTRY_ADDRESS = import.meta.env.VITE_TBA_REGISTRY_ADDRESS || "0x000000006551c19487814612e58FE06813775758";
 export const TBA_ACCOUNT_IMPLEMENTATION = import.meta.env.VITE_TBA_ACCOUNT_IMPLEMENTATION || "0x2D25602551487C3f3354dD80D76D54383A243358";
+export const TBA_DEFAULT_SALT = import.meta.env.VITE_TBA_DEFAULT_SALT || "0";
 
 // TBA対象コントラクトアドレス
 export const TBA_TARGET_CONTRACT_ADDRESS = CONTRACT_ADDRESS;
@@ -48,4 +49,17 @@ export const isTBAEnabled = (): boolean => {
 export const isTBATargetContract = (contractAddress: string): boolean => {
   return contractAddress.toLowerCase() === CONTRACT_ADDRESS.toLowerCase();
 };
+
+// CA Casher (キャッシュサーバー) 設定
+// 明示的に無効にしない限り有効（開発環境ではプロキシ経由で使用）
+export const CA_CASHER_ENABLED = import.meta.env.VITE_CA_CASHER_ENABLED !== 'false';
+export const CA_CASHER_BASE_URL = import.meta.env.VITE_CA_CASHER_BASE_URL || 'https://ea7lit5re3.execute-api.ap-northeast-1.amazonaws.com/prod';
+
+// CA Casherが有効かどうかをチェック
+export const isCACasherEnabled = (): boolean => {
+  return CA_CASHER_ENABLED;
+};
+
+// Member API 設定
+export const MEMBER_API_BASE_URL = import.meta.env.VITE_MEMBER_API_BASE_URL || 'https://ehfm6q914a.execute-api.ap-northeast-1.amazonaws.com/member';
 

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { CONTRACT_ADDRESS } from "../constants";
+import { CONTRACT_ADDRESS, OPENSEA_NETWORK } from "../constants";
 import { NftContractService } from "../utils/nftContract";
 import { MemberService } from "../utils/memberService";
 import { Spinner } from "../components/Spinner";
 import copyIcon from "../assets/icons/copy.svg";
+import discordIcon from "../assets/icons/discord.png";
 import styles from "./CollectionPage.module.css";
 
 interface ContractInfo {
@@ -19,11 +20,11 @@ interface ContractInfo {
 }
 
 export const CollectionPage: React.FC = () => {
-  const { contractAddress } = useParams<{ contractAddress?: string }>();
   const [nftCollectionFeatures, setNftCollectionFeatures] = useState<{
     contractAddress: string;
     contractName: string;
     totalSupply: number;
+    creatorCount: number;
   }[]>([]);
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
   const [creatorMembers, setCreatorMembers] = useState<Map<string, any>>(new Map());
@@ -55,10 +56,14 @@ export const CollectionPage: React.FC = () => {
           setNftLoadingMessage(`Getting supply for ${shortAddress}...`);
           const totalSupply = await contractService.getTotalSupply();
           
+          setNftLoadingMessage(`Getting creators for ${shortAddress}...`);
+          const creators = await contractService.getCreators();
+          
           const result = {
             contractAddress: address,
             contractName: contractName || `NFT ${shortAddress}`,
             totalSupply: totalSupply || 0,
+            creatorCount: creators.length || 0,
           };
           
           // totalSupplyが0より大きい場合のみ追加
@@ -117,7 +122,7 @@ export const CollectionPage: React.FC = () => {
           symbol: symbol || "Unknown",
           totalSupply: totalSupply || 0,
           owner: contractInfoData.creator || "Unknown",
-          maxFeeRate: maxFeeRate || 0,
+          maxFeeRate: Number(maxFeeRate) || 0,
           mintFee: mintFee || "0",
           creators: creators || []
         });
@@ -199,31 +204,62 @@ export const CollectionPage: React.FC = () => {
     <div className={styles.container}>
       <h1 className={styles.title}>Collection</h1>
       <div className={styles.content}>
-        {/* NFT Collection Features */}
-        <div className={styles.placeholder}>
-          <h3>Collection NFT Features</h3>
+        {/* Feature Creator Collection */}
+        <div className={styles.featureSection}>
+          <h2 className={styles.sectionTitle}>Feature Creator Collection</h2>
           {loadingNft ? (
             <Spinner size="medium" text={nftLoadingMessage} />
           ) : nftCollectionFeatures.length > 0 ? (
-            <ul>
+            <div className={styles.featureGrid}>
               {nftCollectionFeatures.map((feature) => (
-                <li key={feature.contractAddress}>
-                  <a href={`/tokens/${feature.contractAddress}`}>
-                    <span>{feature.contractName}</span>
-                    <span style={{ 
-                      fontSize: '0.9em', 
-                      opacity: 0.8, 
-                      fontWeight: 'normal',
-                      marginLeft: '8px'
-                    }}>
-                      ({feature.totalSupply})
+                <div key={feature.contractAddress} className={styles.collectionCard}>
+                  <div className={styles.cardHeader}>
+                    <h3 className={styles.collectionTitle}>{feature.contractName}</h3>
+                    <span className={styles.creatorBadge}>
+                      {feature.creatorCount} creators
                     </span>
-                  </a>
-                </li>
+                  </div>
+                  
+                  <div className={styles.cardContent}>
+                    <p className={styles.collectionDescription}>
+                      A dynamic NFT collection featuring unique digital assets with customizable features and community-driven content.
+                    </p>
+                    
+                    <div className={styles.quickActions}>
+                      <a href={`/collection/creator`} className={styles.primaryAction}>
+                        👥 Browse Creators
+                      </a>
+                      <a href={`/mint`} className={styles.secondaryAction}>
+                        ➕ Create NFT
+                      </a>
+                    </div>
+                    
+                    <div className={styles.externalLinks}>
+                      <a href={`/tokens/${feature.contractAddress}`} className={styles.externalLink}>
+                        📋 Tokens
+                      </a>
+                      <a href={`https://opensea.io/item/${OPENSEA_NETWORK}/${feature.contractAddress}`} 
+                         target="_blank" 
+                         rel="noopener noreferrer" 
+                         className={styles.externalLink}>
+                        🌊 OpenSea
+                      </a>
+                      <a href={`/collection`} className={styles.externalLink}>
+                        ℹ️ Details
+                      </a>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           ) : (
-            <p>No NFT collections configured</p>
+            <div className={styles.emptyState}>
+              <h3>No Featured Collections</h3>
+              <p>No NFT collections are currently featured</p>
+              <a href="/mint" className={styles.createButton}>
+                ➕ Create First NFT
+              </a>
+            </div>
           )}
         </div>
 
@@ -234,12 +270,6 @@ export const CollectionPage: React.FC = () => {
             <Spinner size="medium" text="Loading contract information..." />
           ) : contractInfo ? (
             <div className={styles.infoGrid}>
-              <div className={styles.infoItem}>
-                <span className={styles.infoLabel}>Contract Address:</span>
-                <span className={styles.infoValue} style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>
-                  {contractInfo.contractAddress}
-                </span>
-              </div>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Collection Name:</span>
                 <span className={styles.infoValue}>{contractInfo.contractName}</span>
@@ -253,15 +283,9 @@ export const CollectionPage: React.FC = () => {
                 <span className={styles.infoValue}>{contractInfo.totalSupply.toLocaleString()}</span>
               </div>
               <div className={styles.infoItem}>
-                <span className={styles.infoLabel}>Contract Owner:</span>
-                <span className={styles.infoValue} style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>
-                  {contractInfo.owner.slice(0, 6)}...{contractInfo.owner.slice(-4)}
-                </span>
-              </div>
-              <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Max Royalty Fee Rate:</span>
                 <span className={styles.infoValue}>
-                  {contractInfo.maxFeeRate / 100}% ({contractInfo.maxFeeRate} basis points)
+                  {contractInfo.maxFeeRate}% ({contractInfo.maxFeeRate * 100} basis points)
                 </span>
               </div>
               <div className={styles.infoItem}>
@@ -274,130 +298,6 @@ export const CollectionPage: React.FC = () => {
                 <span className={styles.infoLabel}>Total Creators:</span>
                 <span className={styles.infoValue}>{contractInfo.creators.length}</span>
               </div>
-              {contractInfo.creators.length > 0 && (
-                <div className={styles.infoItem} style={{ gridColumn: '1 / -1' }}>
-                  <span className={styles.infoLabel}>Creators:</span>
-                  <div className={styles.infoValue}>
-                    {contractInfo.creators.map((creator, index) => {
-                      const memberInfo = creatorMembers.get(creator.toLowerCase());
-                      const discordId = memberInfo?.DiscordId || memberInfo?.discord_id;
-                      // 優先順位: Nick > Name > Username
-                      const displayName = memberInfo?.Nick || memberInfo?.nickname || 
-                                        memberInfo?.Name || memberInfo?.name || 
-                                        memberInfo?.Username || memberInfo?.username;
-                      const avatarUrl = memberInfo?.Icon || memberInfo?.avatar_url;
-                      
-                      return (
-                        <div key={creator} style={{ 
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          marginBottom: index < contractInfo.creators.length - 1 ? '8px' : '0'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                            <a
-                              href={`/creator/${creator}`}
-                              style={{
-                                textDecoration: 'none',
-                                color: 'inherit',
-                                fontFamily: 'monospace', 
-                                fontSize: '0.9em'
-                              }}
-                            >
-                              {creator.slice(0, 6)}...{creator.slice(-4)}
-                            </a>
-                            <img
-                              src={copyIcon}
-                              alt="Copy"
-                              width="14"
-                              height="14"
-                              onClick={() => handleCopyAddress(creator)}
-                              style={{
-                                cursor: 'pointer',
-                                opacity: 0.6
-                              }}
-                              title="Copy address"
-                            />
-                            {copiedAddress === creator && (
-                              <div style={{
-                                position: 'absolute',
-                                top: '-28px',
-                                left: '50%',
-                                transform: 'translateX(-50%)',
-                                backgroundColor: '#4caf50',
-                                color: 'white',
-                                padding: '4px 8px',
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                whiteSpace: 'nowrap',
-                                pointerEvents: 'none',
-                                zIndex: 1000
-                              }}>
-                                Copied!
-                              </div>
-                            )}
-                          </div>
-                          {discordId && avatarUrl && (
-                            <div style={{ position: 'relative' }}>
-                              <img
-                                src={avatarUrl}
-                                alt={`Discord avatar for ${discordId}`}
-                                style={{
-                                  width: '24px',
-                                  height: '24px',
-                                  borderRadius: '50%',
-                                  cursor: 'pointer',
-                                  border: '2px solid #5865F2'
-                                }}
-                                onClick={() => handleCopyDiscordId(discordId)}
-                                title={`Copy Discord ID: ${discordId}`}
-                                onError={(e) => {
-                                  console.error(`Failed to load Discord avatar for ${discordId}:`, avatarUrl);
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                                onLoad={() => {
-                                  console.log(`Successfully loaded Discord avatar for ${discordId}:`, avatarUrl);
-                                }}
-                              />
-                              {copiedDiscordId === discordId && (
-                                <div style={{
-                                  position: 'absolute',
-                                  top: '-28px',
-                                  left: '50%',
-                                  transform: 'translateX(-50%)',
-                                  backgroundColor: '#4caf50',
-                                  color: 'white',
-                                  padding: '4px 8px',
-                                  borderRadius: '4px',
-                                  fontSize: '12px',
-                                  whiteSpace: 'nowrap',
-                                  pointerEvents: 'none',
-                                  zIndex: 1000
-                                }}>
-                                  Copied!
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {displayName && (
-                            <a
-                              href={`/own/${creator}`}
-                              style={{
-                                textDecoration: 'none',
-                                fontSize: '0.8em',
-                                color: '#5865F2',
-                                fontWeight: 'bold'
-                              }}
-                            >
-                              @{displayName}
-                            </a>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           ) : (
             <p>Failed to load contract information</p>

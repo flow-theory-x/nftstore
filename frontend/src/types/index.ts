@@ -1,9 +1,13 @@
 export interface NFTToken {
-  tokenId: string;
-  owner: string;
+  id: string;
+  tokenId?: string;
+  owner?: string;
   tokenURI: string;
   contractAddress: string;
   isSbt?: boolean;
+  name?: string;
+  description?: string;
+  image?: string;
   metadata?: {
     name?: string;
     description?: string;
@@ -18,9 +22,13 @@ export interface WalletState {
 }
 
 export interface ContractInfo {
-  creator: string;
-  feeRate: string;
-  creatorOnly: boolean;
+  address: string;
+  name: string;
+  symbol: string;
+  totalSupply: number;
+  creator?: string;
+  feeRate?: string;
+  creatorOnly?: boolean;
 }
 
 export interface MemberInfo {
