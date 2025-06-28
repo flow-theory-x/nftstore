@@ -7,7 +7,7 @@ The NFT Store frontend integrates with an external member service to display ric
 ### Base URL
 
 ```
-https://ehfm6q914a.execute-api.ap-northeast-1.amazonaws.com/member
+https://web3.bon-soleil.com/oldapi/member
 ```
 
 ### Endpoints
@@ -19,6 +19,7 @@ https://ehfm6q914a.execute-api.ap-northeast-1.amazonaws.com/member
 Retrieves member information for a given Ethereum address.
 
 **Parameters:**
+
 - `address` (string): Ethereum address in any format (checksummed, lowercase, or original)
 
 **Response:**
@@ -27,13 +28,13 @@ Retrieves member information for a given Ethereum address.
 {
   "address": "0x742d35Cc6235B...",
   "Nick": "Username",
-  "Name": "Display Name", 
+  "Name": "Display Name",
   "Username": "handle",
   "Icon": "https://example.com/avatar.jpg",
   "DiscordId": "123456789",
   "Roles": [
-    {"name": "Premium", "id": "role1"},
-    {"name": "Verified", "id": "role2"}
+    { "name": "Premium", "id": "role1" },
+    { "name": "Verified", "id": "role2" }
   ],
   "Expired": "2024-12-31T23:59:59Z",
   "Updated": "2024-01-15T10:30:00Z",
@@ -48,25 +49,26 @@ Retrieves member information for a given Ethereum address.
 
 **Field Descriptions:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `address` | string | Original Ethereum address |
-| `Nick` | string | Preferred display name |
-| `Name` | string | Full name |
-| `Username` | string | Handle/username |
-| `Icon` | string | Avatar image URL |
-| `avatar_url` | string | Alternative avatar field |
-| `DiscordId` | string | Discord user ID |
-| `Roles` | array | User roles and permissions |
-| `Expired` | string | Membership expiration date |
-| `Updated` | string | Last update timestamp |
-| `DeleteFlag` | boolean | Soft delete flag |
+| Field        | Type    | Description                |
+| ------------ | ------- | -------------------------- |
+| `address`    | string  | Original Ethereum address  |
+| `Nick`       | string  | Preferred display name     |
+| `Name`       | string  | Full name                  |
+| `Username`   | string  | Handle/username            |
+| `Icon`       | string  | Avatar image URL           |
+| `avatar_url` | string  | Alternative avatar field   |
+| `DiscordId`  | string  | Discord user ID            |
+| `Roles`      | array   | User roles and permissions |
+| `Expired`    | string  | Membership expiration date |
+| `Updated`    | string  | Last update timestamp      |
+| `DeleteFlag` | boolean | Soft delete flag           |
 
 ### Implementation Details
 
 #### Address Format Handling
 
 The service automatically tries multiple address formats:
+
 1. Original address (as provided)
 2. Lowercase address
 3. EIP-55 checksummed address
@@ -74,6 +76,7 @@ The service automatically tries multiple address formats:
 #### Rate Limiting
 
 The service implements intelligent rate limiting:
+
 - Batch size: 3 concurrent requests
 - Delay between batches: 100ms
 - Automatic retry with exponential backoff
@@ -87,16 +90,16 @@ The service implements intelligent rate limiting:
 ### Usage Example
 
 ```typescript
-import { memberService } from '../utils/memberService';
+import { memberService } from "../utils/memberService";
 
 // Get single member info
-const memberInfo = await memberService.getMemberInfo('0x742d35Cc6235B...');
+const memberInfo = await memberService.getMemberInfo("0x742d35Cc6235B...");
 
 // Get multiple members (batched)
 const memberInfos = await memberService.getMemberInfoBatch([
-  '0x742d35Cc6235B...',
-  '0x8ba1f109551bD...',
-  '0x123456789abcd...'
+  "0x742d35Cc6235B...",
+  "0x8ba1f109551bD...",
+  "0x123456789abcd...",
 ]);
 ```
 
@@ -117,15 +120,16 @@ The application implements a sophisticated rate limiting system to prevent API o
 
 ```typescript
 class RateLimiter {
-  private minDelay = 100;           // Minimum delay between requests (ms)
-  private rateLimitDelay = 10000;   // Delay when rate limited (ms)
-  private maxRetries = 3;           // Maximum retry attempts
+  private minDelay = 100; // Minimum delay between requests (ms)
+  private rateLimitDelay = 10000; // Delay when rate limited (ms)
+  private maxRetries = 3; // Maximum retry attempts
 }
 ```
 
 ### Error Detection
 
 The system detects rate limiting through:
+
 - HTTP status codes (429, 503)
 - Error messages containing rate limit keywords
 - Network timeout errors
@@ -133,6 +137,7 @@ The system detects rate limiting through:
 ### User Interface
 
 When rate limiting is active:
+
 - Notification banner appears at top of screen
 - Countdown timer shows remaining wait time
 - Current retry attempt displayed
@@ -157,16 +162,10 @@ TBA target contracts are configured in constants:
 
 ```typescript
 // NFT contracts to search for TBA-owned tokens
-export const TBA_TARGET_NFT_CA_ADDRESSES = [
-  "0x123...",
-  "0x456..."
-];
+export const TBA_TARGET_NFT_CA_ADDRESSES = ["0x123...", "0x456..."];
 
 // SBT contracts (non-transferable)
-export const TBA_TARGET_SBT_CA_ADDRESSES = [
-  "0x789...",
-  "0xabc..."
-];
+export const TBA_TARGET_SBT_CA_ADDRESSES = ["0x789...", "0xabc..."];
 ```
 
 ### Account Detection
@@ -181,6 +180,7 @@ const isTBA = false; // Currently safe default
 ### Asset Discovery
 
 TBA-owned assets are discovered through:
+
 1. Event log scanning
 2. Balance queries across target contracts
 3. Metadata resolution for found tokens
@@ -191,6 +191,7 @@ TBA-owned assets are discovered through:
 ### Philosophy
 
 The application follows a defensive programming approach:
+
 - Graceful degradation when services are unavailable
 - User-friendly error messages
 - Automatic retry for transient failures

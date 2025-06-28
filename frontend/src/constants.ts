@@ -1,5 +1,7 @@
 // NFT対象コントラクトアドレス
-export const CONTRACT_ADDRESS = import.meta.env.VITE_TARGET_NFT_CA || "0x0000000000000000000000000000000000000000";
+export const CONTRACT_ADDRESS =
+  import.meta.env.VITE_TARGET_NFT_CA ||
+  "0x0000000000000000000000000000000000000000";
 export const CHAIN_ID = Number(import.meta.env.VITE_CHAIN_ID) || 1;
 export const CHAIN_NAME = import.meta.env.VITE_CHAIN_NAME || "Ethereum";
 export const RPC_URL =
@@ -27,11 +29,17 @@ export const EXTERNAL_LINK_NAME = import.meta.env.VITE_EXTERNAL_LINK_NAME || "";
 export const EXTERNAL_LINK_URL = import.meta.env.VITE_EXTERNAL_LINK_URL || "";
 
 // Model viewer information
-export const MODEL_VIEWER_BASE_URL = import.meta.env.VITE_MODEL_VIEWER_BASE_URL || "https://goodsun.github.io/modelviewer";
+export const MODEL_VIEWER_BASE_URL =
+  import.meta.env.VITE_MODEL_VIEWER_BASE_URL ||
+  "https://goodsun.github.io/modelviewer";
 
 // TBA (Token Bound Account) configuration
-export const TBA_REGISTRY_ADDRESS = import.meta.env.VITE_TBA_REGISTRY_ADDRESS || "0x000000006551c19487814612e58FE06813775758";
-export const TBA_ACCOUNT_IMPLEMENTATION = import.meta.env.VITE_TBA_ACCOUNT_IMPLEMENTATION || "0x2D25602551487C3f3354dD80D76D54383A243358";
+export const TBA_REGISTRY_ADDRESS =
+  import.meta.env.VITE_TBA_REGISTRY_ADDRESS ||
+  "0x000000006551c19487814612e58FE06813775758";
+export const TBA_ACCOUNT_IMPLEMENTATION =
+  import.meta.env.VITE_TBA_ACCOUNT_IMPLEMENTATION ||
+  "0x2D25602551487C3f3354dD80D76D54383A243358";
 export const TBA_DEFAULT_SALT = import.meta.env.VITE_TBA_DEFAULT_SALT || "0";
 
 // TBA対象コントラクトアドレス
@@ -52,8 +60,11 @@ export const isTBATargetContract = (contractAddress: string): boolean => {
 
 // CA Casher (キャッシュサーバー) 設定
 // 明示的に無効にしない限り有効（開発環境ではプロキシ経由で使用）
-export const CA_CASHER_ENABLED = import.meta.env.VITE_CA_CASHER_ENABLED !== 'false';
-export const CA_CASHER_BASE_URL = import.meta.env.VITE_CA_CASHER_BASE_URL || 'https://ea7lit5re3.execute-api.ap-northeast-1.amazonaws.com/prod';
+export const CA_CASHER_ENABLED =
+  import.meta.env.VITE_CA_CASHER_ENABLED !== "false";
+export const CA_CASHER_BASE_URL =
+  import.meta.env.VITE_CA_CASHER_BASE_URL ||
+  "https://web3.bon-soleil.com/nftcash";
 
 // CA Casherが有効かどうかをチェック
 export const isCACasherEnabled = (): boolean => {
@@ -61,5 +72,5 @@ export const isCACasherEnabled = (): boolean => {
 };
 
 // Member API 設定
-export const MEMBER_API_BASE_URL = import.meta.env.VITE_MEMBER_API_BASE_URL || 'https://ehfm6q914a.execute-api.ap-northeast-1.amazonaws.com/member';
-
+export const MEMBER_API_BASE_URL =
+  import.meta.env.VITE_MEMBER_API_BASE_URL || "https://web3.bon-soleil.com/api";

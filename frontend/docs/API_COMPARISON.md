@@ -7,12 +7,14 @@ This document compares the current member API with the new Discord API at https:
 ## 1. Endpoint Comparison
 
 ### Current API
-- **Base URL**: `https://ehfm6q914a.execute-api.ap-northeast-1.amazonaws.com/member`
+
+- **Base URL**: `https://web3.bon-soleil.com/oldapi/member`
 - **Endpoint**: `/member/:address`
 - **Method**: GET
 - **Purpose**: Retrieve member information by Ethereum address
 
 ### New API
+
 - **Base URL**: `https://web3.bon-soleil.com/api`
 - **Endpoint**: `/discord/eoa/:eoa`
 - **Method**: GET
@@ -21,7 +23,9 @@ This document compares the current member API with the new Discord API at https:
 ## 2. Response Format Comparison
 
 ### Current API Response Fields
+
 Based on the MemberInfo interface, the current API returns:
+
 - `DeleteFlag` (boolean) - Member deletion status
 - `DiscordId` (string) - Discord user ID
 - `Icon` (string) - Avatar URL
@@ -35,6 +39,7 @@ Based on the MemberInfo interface, the current API returns:
 - `Username` (string) - Discord username
 
 ### New API Response Format
+
 ```json
 {
   "eoa_address": "0xcf20a6ecbbedb403db466d669229d9ee379c433f",
@@ -64,33 +69,36 @@ Based on the MemberInfo interface, the current API returns:
 
 ## 3. Field Mapping
 
-| Current API Field | New API Field | Notes |
-|------------------|---------------|-------|
-| `DiscordId` | `discord_member.user_id` | Direct mapping |
-| `Icon` | `discord_member.avatar` | Avatar hash only |
-| `Icon` (full URL) | `discord_member.avatar_url` | Complete URL |
-| `Nick` | `discord_member.display_name` | Display name |
-| `Username` | `discord_member.username` | Discord username |
-| `Roles` | `discord_member.roles` | Changed from string[] to object[] with more details |
-| `Eoa` | `eoa_address` | Moved to root level |
-| `DeleteFlag` | Not available | Missing in new API |
-| `Expired` | Not available | Missing in new API |
-| `PartitionName` | Not available | Missing in new API |
-| `Updated` | Not available | Missing in new API |
-| `Name` | Not available | Missing in new API |
-| - | `discord_member.joined_at` | New field - when user joined Discord server |
-| - | `discord_member.premium_since` | New field - Nitro boost status |
-| - | `registration_info` | New field - EOA registration details |
+| Current API Field | New API Field                  | Notes                                               |
+| ----------------- | ------------------------------ | --------------------------------------------------- |
+| `DiscordId`       | `discord_member.user_id`       | Direct mapping                                      |
+| `Icon`            | `discord_member.avatar`        | Avatar hash only                                    |
+| `Icon` (full URL) | `discord_member.avatar_url`    | Complete URL                                        |
+| `Nick`            | `discord_member.display_name`  | Display name                                        |
+| `Username`        | `discord_member.username`      | Discord username                                    |
+| `Roles`           | `discord_member.roles`         | Changed from string[] to object[] with more details |
+| `Eoa`             | `eoa_address`                  | Moved to root level                                 |
+| `DeleteFlag`      | Not available                  | Missing in new API                                  |
+| `Expired`         | Not available                  | Missing in new API                                  |
+| `PartitionName`   | Not available                  | Missing in new API                                  |
+| `Updated`         | Not available                  | Missing in new API                                  |
+| `Name`            | Not available                  | Missing in new API                                  |
+| -                 | `discord_member.joined_at`     | New field - when user joined Discord server         |
+| -                 | `discord_member.premium_since` | New field - Nitro boost status                      |
+| -                 | `registration_info`            | New field - EOA registration details                |
 
 ## 4. Key Differences
 
 ### Data Structure
+
 1. **Nested Structure**: New API uses nested structure with `discord_member` and `registration_info` objects
 2. **Role Details**: New API provides rich role information (id, name, color, position) vs simple string array
 3. **Avatar Handling**: New API provides both hash and full URL separately
 
 ### Missing Fields
+
 The following fields from the current API are not available in the new API:
+
 - `DeleteFlag` - Member deletion status
 - `Expired` - Member expiration date
 - `PartitionName` - Partition identifier
@@ -98,7 +106,9 @@ The following fields from the current API are not available in the new API:
 - `Name` - Full name field
 
 ### New Fields
+
 The new API provides additional information:
+
 - `joined_at` - Discord server join date
 - `premium_since` - Discord Nitro boost status
 - `registration_info.verified` - EOA verification status
@@ -106,22 +116,26 @@ The new API provides additional information:
 - Role color and position information
 
 ### Error Handling
+
 - **Current API**: Returns `{"message": "member not found"}` for non-existent members
 - **New API**: Returns `{"error": "No Discord user found for this EOA address", "eoa_address": "..."}` for non-registered addresses
 
 ## 5. API Behavior
 
 ### Case Sensitivity
+
 - Both APIs handle Ethereum address case variations correctly
 - The new API normalizes addresses to lowercase in responses
 
 ### Authentication
+
 - Current API: No authentication required
 - New API: No authentication required for `/discord/eoa/:eoa` endpoint
 
 ## 6. Test Data
 
 ### Example Working Address
+
 - Address: `0xcf20a6ecbbedb403db466d669229d9ee379c433f`
 - Discord User: FLOW (flow_theory_x)
 - User ID: 1285946299593523271
@@ -129,6 +143,7 @@ The new API provides additional information:
 ## 7. Migration Considerations
 
 ### Required Code Changes
+
 1. Update API endpoint URL
 2. Modify response parsing to handle nested structure
 3. Update field mappings (e.g., `Icon` → `discord_member.avatar_url`)
@@ -136,12 +151,14 @@ The new API provides additional information:
 5. Adapt role handling from string[] to object[]
 
 ### Potential Issues
+
 1. **Missing Expiration Data**: The new API doesn't provide member expiration information
 2. **No Deletion Flag**: Can't determine if a member has been deleted
 3. **No Update Tracking**: No timestamp for when member data was last updated
 4. **Different Error Format**: Error responses have different structure
 
 ### Benefits of New API
+
 1. Richer role information with colors and positions
 2. Discord server join date tracking
 3. EOA registration verification status

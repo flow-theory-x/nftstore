@@ -63,7 +63,7 @@ export class MemberService {
               ...data
             } as MemberInfo;
           } else if (response.status === 404) {
-            console.log(`📋 Member not found (404) for ${addr}, trying next address...`);
+            console.info(`ℹ️ Member not found (404) for ${addr} - trying next address format...`);
             continue;
           } else {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -71,7 +71,7 @@ export class MemberService {
         }
         
         // すべてのアドレス形式で見つからなかった場合
-        console.log(`📋 Member not found in any address format for: ${address}`);
+        console.info(`ℹ️ Member not found in any address format for: ${address} - this is normal for unregistered addresses`);
         return null;
     } catch (error) {
       console.error(`❌ Failed to fetch member info for ${address}:`, error);
@@ -94,28 +94,81 @@ export class MemberService {
       
       for (const addr of uniqueAddresses) {
         console.log(`🔍 Trying address with new API: ${addr}`);
-        const response = await fetch(`${MEMBER_API_BASE_URL}/discord/eoa/${addr}`);
         
-        console.log(`📡 New API Response status: ${response.status} for ${addr}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`📋 Raw new API response for ${addr}:`, data);
+        try {
+          const response = await fetch(`${MEMBER_API_BASE_URL}/discord/eoa/${addr}`, {
+            credentials: 'omit',
+            cache: 'no-cache'
+          });
           
-          // 新APIからのレスポンスをマッピング
-          if (data.discord_member) {
-            const mapped = this.mapNewAPIResponse(address, data);
-            console.log(`✅ Member info mapped from new API:`, mapped);
-            return mapped;
+          console.log(`📡 New API Response status: ${response.status} for ${addr}`);
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`📋 Raw new API response for ${addr}:`, data);
+            
+            // 新APIからのレスポンスをマッピング
+            if (data.discord_member) {
+              const mapped = this.mapNewAPIResponse(address, data);
+              console.log(`✅ Member info mapped from new API:`, mapped);
+              return mapped;
+            }
+          } else if (response.status === 404) {
+            console.info(`ℹ️ Member not found in new API (404) for ${addr} - this is normal for unregistered addresses`);
+            continue;
+          } else if (response.status === 503) {
+            // 503エラーの場合、レスポンスボディを確認して部分的な情報があれば利用
+            console.warn(`⚠️ Discord service temporarily unavailable (503) for ${addr}`);
+            
+            try {
+              const errorData = await response.json();
+              console.warn(`📋 503 Response body:`, errorData);
+              
+              // Discord IDやEOAアドレスが含まれている場合は部分的なMemberInfoを作成
+              if (errorData.discord_id || errorData.eoa_address) {
+                console.info(`ℹ️ Creating partial member info from 503 response for ${addr}`);
+                const partialMemberInfo: MemberInfo = {
+                  address: address,
+                  DeleteFlag: false,
+                  DiscordId: errorData.discord_id || '',
+                  Icon: '',
+                  Roles: [],
+                  Expired: 'EMPTY',
+                  Eoa: errorData.eoa_address || address,
+                  Nick: `User (Discord unavailable)`,
+                  PartitionName: 'EMPTY',
+                  Updated: 'EMPTY',
+                  Name: `User (Discord unavailable)`,
+                  Username: '',
+                  name: `User (Discord unavailable)`,
+                  email: 'EMPTY',
+                  role: '',
+                  joinedAt: '',
+                  joined_at: '',
+                  status: 'discord_unavailable',
+                  deleted: false,
+                  discord_id: errorData.discord_id || '',
+                  avatar_url: '',
+                  nickname: '',
+                  username: '',
+                  roles: [],
+                  expires_at: 'EMPTY',
+                  updated_at: 'EMPTY',
+                };
+                return partialMemberInfo;
+              }
+            } catch (jsonError) {
+              console.warn(`📋 Could not parse 503 response as JSON:`, jsonError);
+            }
+            continue;
           }
-        } else if (response.status === 404) {
-          const errorData = await response.json();
-          console.log(`📋 Member not found in new API (404) for ${addr}:`, errorData);
+        } catch (fetchError) {
+          console.info(`ℹ️ Could not fetch member info for ${addr} - this is normal for unregistered addresses`);
           continue;
         }
       }
       
-      console.log(`📋 Member not found in new API for: ${address}`);
+      console.info(`ℹ️ Member not found in new API for: ${address} - this is normal for unregistered addresses`);
       return null;
     } catch (error) {
       console.error(`❌ Failed to fetch from new API for ${address}:`, error);
@@ -194,6 +247,7 @@ export class MemberService {
     
     return results;
   }
+
 
   /**
    * アドレスをEIP-55チェックサム形式に変換
