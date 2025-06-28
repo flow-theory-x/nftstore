@@ -61,6 +61,46 @@
   word-break: break-all;
 }
 
+.addressContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.copyButton {
+  background: none;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 0.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.copyButton:hover {
+  background-color: #e9ecef;
+  border-color: #adb5bd;
+  transform: scale(1.05);
+}
+
+.copyTooltip {
+  position: absolute;
+  top: -32px;
+  right: 0;
+  background-color: #28a745;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1000;
+}
+
 .placeholder {
   background-color: #defff8;
   border: 1px solid #89afaf;
@@ -215,6 +255,111 @@
   line-height: 1.6;
   margin: 0;
   font-size: 0.95rem;
+}
+
+.creatorsPreview {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.creatorsTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 1rem 0;
+}
+
+.creatorsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.creatorItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.5rem;
+  background-color: white;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s;
+}
+
+.creatorItem:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: #30bca7;
+  text-decoration: none;
+  color: inherit;
+}
+
+.creatorItem .avatarContainer {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.creatorAvatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #FF6B35;
+}
+
+.creatorItem .creatorBadge {
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  background: #FF6B35;
+  color: white;
+  font-size: 0.5rem;
+  padding: 2px 4px;
+  border-radius: 6px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  transform: translate(25%, 25%);
+}
+
+.creatorName {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #333;
+  text-align: center;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.moreCreators {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 0.5rem;
+  background-color: #e9ecef;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #666;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.moreCreators:hover {
+  background-color: #30bca7;
+  color: white;
+  text-decoration: none;
+  transform: translateY(-2px);
 }
 
 .quickActions {

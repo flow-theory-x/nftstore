@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { WalletConnect } from "./WalletConnect";
 import { useWallet } from "../hooks/useWallet";
@@ -16,9 +16,17 @@ import styles from "./Layout.module.css";
 export const Layout: React.FC = () => {
   const { walletState } = useWallet();
   const location = useLocation();
+  
+  // walletStateを安定化
+  const stableWalletState = useMemo(() => ({
+    isConnected: walletState.isConnected,
+    address: walletState.address,
+    chainId: walletState.chainId
+  }), [walletState.isConnected, walletState.address, walletState.chainId]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [previousAddress, setPreviousAddress] = useState<string | null>(null);
   const mobileNavRef = useRef<HTMLElement>(null);
+  
 
   // URLから現在のcontractAddressを取得
   const getContractAddressFromPath = () => {
@@ -64,6 +72,17 @@ export const Layout: React.FC = () => {
   };
 
   const currentContractAddress = getCurrentContractAddress();
+  
+  // デバッグ用: ウォレット状態をログ出力
+  useEffect(() => {
+    console.log('🎯 Layout: Wallet state changed:', {
+      isConnected: walletState.isConnected,
+      address: walletState.address,
+      chainId: walletState.chainId,
+      timestamp: new Date().toISOString()
+    });
+    console.log('📋 Layout: Should show Portfolio menu:', walletState.isConnected);
+  }, [walletState.isConnected, walletState.address]);
 
   // URLが変更された時にlocalStorageを更新
   useEffect(() => {
@@ -116,10 +135,10 @@ export const Layout: React.FC = () => {
         return `${basePath}/${extraPath}`;
       } else {
         // extraPathがない場合はウォレットが接続されていればそのアドレスを使用
-        if (walletState.isConnected && walletState.address) {
-          return `${basePath}/${walletState.address}`;
+        if (stableWalletState.isConnected && stableWalletState.address) {
+          return `${basePath}/${stableWalletState.address}`;
         }
-        return "/collection"; // 未接続の場合はCollectionページへ
+        return "/"; // 未接続の場合はHomeページへ
       }
     }
     
@@ -132,7 +151,7 @@ export const Layout: React.FC = () => {
         if (walletState.isConnected && walletState.address) {
           return `${basePath}/${walletState.address}`;
         }
-        return "/collection"; // 未接続の場合はCollectionページへ
+        return "/"; // 未接続の場合はHomeページへ
       }
     }
 
@@ -155,22 +174,17 @@ export const Layout: React.FC = () => {
             </Link>
           </h1>
           <nav className={styles.nav}>
-            <Link to={createLink("/collection")} className={styles.navLink}>
-              Collection
+            <Link to="/" className={styles.navLink}>
+              Home
             </Link>
-            <Link to="/collection/creator" className={styles.navLink}>
+            <Link to="/creator" className={styles.navLink}>
               Creators
             </Link>
-            {walletState.isConnected && (
-              <Link
-                to={createLink("/own", walletState.address)}
-                className={styles.navLink}
-              >
-                Own
-              </Link>
-            )}
-            <Link to={createLink("/mint")} className={styles.navLink}>
+            <Link to="/mint" className={styles.navLink}>
               Mint
+            </Link>
+            <Link to="/own" className={styles.navLink}>
+              Portfolio
             </Link>
             {EXTERNAL_LINK_NAME && EXTERNAL_LINK_URL && (
               <a
@@ -198,34 +212,32 @@ export const Layout: React.FC = () => {
           </div>
           <nav ref={mobileNavRef} className={`${styles.mobileNav} ${isMenuOpen ? styles.mobileNavOpen : ''}`}>
             <Link 
-              to={createLink("/collection")} 
+              to="/" 
               className={styles.navLink}
               onClick={() => setIsMenuOpen(false)}
             >
-              Collection
+              Home
             </Link>
             <Link 
-              to="/collection/creator" 
+              to="/creator" 
               className={styles.navLink}
               onClick={() => setIsMenuOpen(false)}
             >
               Creators
             </Link>
-            {walletState.isConnected && (
-              <Link
-                to={createLink("/own", walletState.address)}
-                className={styles.navLink}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Own
-              </Link>
-            )}
             <Link 
-              to={createLink("/mint")} 
+              to="/mint" 
               className={styles.navLink}
               onClick={() => setIsMenuOpen(false)}
             >
               Mint
+            </Link>
+            <Link 
+              to="/own" 
+              className={styles.navLink}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Portfolio
             </Link>
             {EXTERNAL_LINK_NAME && EXTERNAL_LINK_URL && (
               <a

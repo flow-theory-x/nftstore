@@ -3,11 +3,11 @@ import { useParams } from "react-router-dom";
 import { NFTCard } from "../components/NFTCard";
 import { Spinner } from "../components/Spinner";
 import { NftContractService } from "../utils/nftContract";
-import { MemberService } from "../utils/memberService";
-import { withCACasher } from "../utils/caCasherClient";
 import { useCreatorPageWalletChange } from "../hooks/useWalletAddressChange";
+import { useAddressInfo } from "../hooks/useAddressInfo";
+import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
 import { CONTRACT_ADDRESS } from "../constants";
-import type { NFTToken, MemberInfo } from "../types";
+import type { NFTToken } from "../types";
 import styles from "./TokensPage.module.css";
 
 export const CreatorPage: React.FC = () => {
@@ -29,9 +29,6 @@ export const CreatorPage: React.FC = () => {
   // エラー状態
   const [error, setError] = useState<string | null>(null);
   
-  // クリエイター情報
-  const [creatorMemberInfo, setCreatorMemberInfo] = useState<MemberInfo | null>(null);
-  const [creatorName, setCreatorName] = useState<string>("");
   
   // リフレッシュトリガー
   const [forceRefresh, setForceRefresh] = useState(0);
@@ -114,46 +111,9 @@ export const CreatorPage: React.FC = () => {
     setCurrentBatchIndex(0);
     setCurrentTokenInfo("");
 
-    // Load creator info and start fetching tokens
-    const loadCreatorInfo = async () => {
+    // Start fetching tokens
+    const loadCreatorTokens = async () => {
       try {
-        const memberService = new MemberService();
-
-        // Get creator name from contract
-        try {
-          const contractCreatorName = await withCACasher(
-            CONTRACT_ADDRESS,
-            'getCreatorName',
-            [creatorAddress!],
-            async () => {
-              const contractService = new NftContractService(CONTRACT_ADDRESS);
-              return await contractService.getCreatorName(creatorAddress!);
-            }
-          );
-          if (contractCreatorName && contractCreatorName.trim()) {
-            setCreatorName(contractCreatorName);
-            console.log("📝 Creator name from contract:", contractCreatorName);
-          }
-        } catch (err) {
-          console.warn("Failed to fetch creator name from contract:", err);
-        }
-
-        // Get member info from Discord API
-        try {
-          const memberInfo = await memberService.getMemberInfo(creatorAddress!);
-          if (memberInfo) {
-            setCreatorMemberInfo(memberInfo);
-            console.log("📝 Creator member info:", {
-              Nick: memberInfo.Nick || memberInfo.nickname,
-              Name: memberInfo.Name || memberInfo.name,
-              Username: memberInfo.Username || memberInfo.username,
-              DiscordId: memberInfo.DiscordId || memberInfo.discord_id
-            });
-          }
-        } catch (err) {
-          console.warn("Failed to fetch member info:", err);
-        }
-
         setLoading(false);
         
         // Start fetching first batch of tokens
@@ -162,15 +122,17 @@ export const CreatorPage: React.FC = () => {
         setIsLoadingMore(false);
 
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to fetch creator info");
-        console.error("Failed to fetch creator info:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch creator tokens");
+        console.error("Failed to fetch creator tokens:", err);
         setLoading(false);
         setIsLoadingMore(false);
       }
     };
 
-    loadCreatorInfo();
-  }, [creatorAddress, forceRefresh]);
+    loadCreatorTokens();
+  }, [creatorAddress, forceRefresh, fetchCreatorTokensBatch]);
+
+  const addressInfo = useAddressInfo(creatorAddress);
 
 
   // Auto-load more tokens
@@ -208,38 +170,13 @@ export const CreatorPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [nftTokens.length, sbtTokens.length, loading, isLoadingMore, hasMore, currentBatchIndex]);
 
-  const formatCreatorAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  const getCreatorDisplayName = () => {
-    // 優先順位: getCreatorName > Nick > Name > Username
-    const displayName = creatorName ||
-           creatorMemberInfo?.Nick || creatorMemberInfo?.nickname ||
-           creatorMemberInfo?.Name || creatorMemberInfo?.name ||
-           creatorMemberInfo?.Username || creatorMemberInfo?.username ||
-           "Creator";
-    
-    console.log("🏷️ Creator display name calculation:", {
-      creatorName,
-      memberInfo: creatorMemberInfo ? {
-        Nick: creatorMemberInfo.Nick,
-        Name: creatorMemberInfo.Name,
-        Username: creatorMemberInfo.Username
-      } : null,
-      finalDisplayName: displayName
-    });
-    
-    return displayName;
-  };
-
   const getPageTitle = () => {
-    const displayName = getCreatorDisplayName();
+    const displayName = addressInfo.displayName;
     
-    if (displayName !== "Creator") {
-      return `${displayName} (${formatCreatorAddress(creatorAddress!)})`;
+    if (displayName !== AddressDisplayUtils.formatAddress(creatorAddress || '')) {
+      return `${displayName} (${AddressDisplayUtils.formatAddress(creatorAddress!)})`;
     }
-    return formatCreatorAddress(creatorAddress!);
+    return AddressDisplayUtils.formatAddress(creatorAddress!);
   };
 
   if (loading) {
@@ -366,7 +303,7 @@ export const CreatorPage: React.FC = () => {
                 borderBottom: "2px solid #ddd", 
                 paddingBottom: "8px" 
               }}>
-                {getCreatorDisplayName()} NFT ({nftTokens.length})
+                {addressInfo.displayName} NFT ({nftTokens.length})
               </h2>
               <div className={styles.grid}>
                 {nftTokens.map((token) => (
@@ -390,7 +327,7 @@ export const CreatorPage: React.FC = () => {
                 borderBottom: "2px solid #ddd", 
                 paddingBottom: "8px" 
               }}>
-                {getCreatorDisplayName()} SBT ({sbtTokens.length})
+                {addressInfo.displayName} SBT ({sbtTokens.length})
               </h2>
               <div className={styles.grid}>
                 {sbtTokens.map((token) => (

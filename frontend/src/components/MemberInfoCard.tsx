@@ -3,7 +3,9 @@ import type { MemberInfo, NFTToken } from "../types";
 import { Spinner } from "./Spinner";
 import { NFTCard } from "./NFTCard";
 import { NftContractService } from "../utils/nftContract";
+import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
 import discordIcon from "../assets/icons/discord.png";
+import creatorIcon from "../assets/icons/creator.svg";
 import styles from "./MemberInfoCard.module.css";
 
 interface MemberInfoCardProps {
@@ -34,9 +36,6 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
     }
   };
 
-  const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -102,6 +101,57 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
                 : "Loading member info..."
             }
           />
+        </div>
+      </div>
+    );
+  }
+
+  // Creator account without Discord info
+  if (!memberInfo && !isTbaAccount && AddressDisplayUtils.isCreatorAccount(creatorName)) {
+    return (
+      <div className={styles.card}>
+        <div className={styles.header}>
+          <div className={styles.profileSection}>
+            <div className={styles.avatarContainer}>
+              <img
+                src={creatorIcon}
+                alt="Creator Account"
+                className={styles.avatar}
+                style={{
+                  border: "3px solid #FF6B35"
+                }}
+              />
+            </div>
+            <div className={styles.nameSection}>
+              <h3 className={styles.displayName}>{creatorName}</h3>
+              <p className={styles.username}>Creator Account</p>
+            </div>
+          </div>
+          <div className={styles.status}>
+            <span className={`${styles.statusBadge} ${styles.statusCreator}`}>
+              Creator Account
+            </span>
+          </div>
+        </div>
+
+        <div className={styles.content}>
+          <div className={styles.infoGrid}>
+            <div className={styles.field}>
+              <span className={styles.label}>Account Type</span>
+              <span className={styles.value}>Creator Account</span>
+            </div>
+
+            <div className={styles.field}>
+              <span className={styles.label}>Creator Status</span>
+              <span className={styles.value}>Verified Creator</span>
+            </div>
+          </div>
+
+          {/* アドレス情報は下部に強調表示 */}
+          <div className={styles.addressSection}>
+            <span className={styles.addressLabel}>Wallet Address</span>
+            <span className={styles.addressValue}>{address}</span>
+          </div>
         </div>
       </div>
     );
@@ -229,7 +279,7 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
                       style={{ color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }}
                       onClick={() => window.location.href = `/token/${tbaSourceNFT.contractAddress}/${tbaSourceNFT.tokenId}`}
                     >
-                      {formatAddress(tbaSourceNFT.contractAddress)} #
+                      {AddressDisplayUtils.formatAddress(tbaSourceNFT.contractAddress)} #
                       {tbaSourceNFT.tokenId}
                     </span>
                     <button
@@ -259,7 +309,7 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
                       style={{ color: '#007bff', cursor: 'pointer', textDecoration: 'underline' }}
                       onClick={() => window.location.href = `/own/${tbaSourceNFT.owner}`}
                     >
-                      {formatAddress(tbaSourceNFT.owner)}
+                      {AddressDisplayUtils.formatAddress(tbaSourceNFT.owner)}
                     </span>
                     <button
                       onClick={() => copyToClipboard(tbaSourceNFT.owner)}
@@ -317,18 +367,22 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
         <div className={styles.profileSection}>
           <div className={styles.avatarContainer}>
             <img
-              src={memberInfo.Icon || memberInfo.avatar_url || discordIcon}
-              alt={
-                memberInfo.Nick ||
-                memberInfo.Name ||
-                memberInfo.nickname ||
-                memberInfo.username ||
-                "Member"
-              }
+              src={AddressDisplayUtils.getAvatarUrlWithCreator(
+                creatorName,
+                memberInfo,
+                undefined,
+                creatorIcon
+              ) || discordIcon}
+              alt={AddressDisplayUtils.getPriorityName(memberInfo, address)}
               className={styles.avatar}
+              style={{
+                border: AddressDisplayUtils.isCreatorAccount(creatorName) 
+                  ? "3px solid #FF6B35" 
+                  : "3px solid #5865F2"
+              }}
               onError={(e) => {
-                if (e.currentTarget.src !== discordIcon) {
-                  console.error('Failed to load Discord avatar, using default icon');
+                if (e.currentTarget.src !== discordIcon && e.currentTarget.src !== creatorIcon) {
+                  console.error('Failed to load avatar, using default icon');
                   e.currentTarget.src = discordIcon;
                 }
               }}
@@ -336,12 +390,12 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
           </div>
           <div className={styles.nameSection}>
             <h3 className={styles.displayName}>
-              {creatorName ||
-                memberInfo.Nick ||
-                memberInfo.Name ||
-                memberInfo.nickname ||
-                memberInfo.username ||
-                "Unknown Member"}
+              {AddressDisplayUtils.getDisplayNameFromParts(
+                creatorName,
+                memberInfo,
+                undefined,
+                address
+              )}
             </h3>
             {(memberInfo.Username || memberInfo.username) &&
               (memberInfo.Nick || memberInfo.Name) &&
@@ -354,9 +408,20 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
           </div>
         </div>
         <div className={styles.status}>
-          <span className={`${styles.statusBadge} ${styles.statusDiscord}`}>
-            Discord User
-          </span>
+          {AddressDisplayUtils.isCreatorAccount(creatorName) ? (
+            <>
+              <span className={`${styles.statusBadge} ${styles.statusCreator}`}>
+                Creator Account
+              </span>
+              <span className={`${styles.statusBadge} ${styles.statusDiscord}`}>
+                Discord User
+              </span>
+            </>
+          ) : (
+            <span className={`${styles.statusBadge} ${styles.statusDiscord}`}>
+              Discord User
+            </span>
+          )}
         </div>
       </div>
 

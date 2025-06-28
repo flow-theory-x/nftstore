@@ -136,12 +136,6 @@ export class CACasherClient {
     return data.result;
   }
 
-  /**
-   * サポート関数一覧を取得
-   */
-  getSupportedFunctions(): string[] {
-    return Object.keys(CA_CASHER_SUPPORTED_FUNCTIONS);
-  }
 }
 
 /**

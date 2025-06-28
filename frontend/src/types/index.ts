@@ -63,3 +63,20 @@ export interface MemberInfo {
   
   [key: string]: any; // 追加のプロパティに対応
 }
+
+export interface TBAInfo {
+  isTBA: boolean;
+  sourceNFT?: NFTToken | null;
+  tbaImage?: string | null;
+  tbaName?: string | null;
+}
+
+export interface AddressNameInfo {
+  address: string;
+  creatorName?: string;
+  memberInfo?: MemberInfo | null;
+  tbaInfo?: TBAInfo;
+  displayName: string;
+  loading: boolean;
+  error?: string | null;
+}

@@ -50,9 +50,9 @@ export const WalletConnect: React.FC = () => {
             try {
               const result = await connectWallet();
               if (result && result.address) {
-                // 現在のページがホームやCollectionページの場合は Own ページにリダイレクト
+                // 現在のページがホームページの場合は Own ページにリダイレクト
                 const currentPath = location.pathname;
-                if (currentPath === '/' || currentPath === '/collection') {
+                if (currentPath === '/') {
                   navigate(`/own/${result.address}`);
                 }
                 // その他のページではリダイレクトしない（ユーザーが現在のページに留まる）

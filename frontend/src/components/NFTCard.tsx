@@ -3,16 +3,15 @@ import ReactDOM from "react-dom";
 import { Link } from "react-router-dom";
 import type { NFTToken } from "../types";
 import { NftContractService } from "../utils/nftContract";
-import { memberService } from "../utils/memberService";
 import {
   OPENSEA_BASE_URL,
   isTBAEnabled,
   isTBATargetContract,
 } from "../constants";
-import type { MemberInfo } from "../types";
 import { useWallet } from "../hooks/useWallet";
+import { useOwnerAndCreatorInfo } from "../hooks/useAddressInfo";
+import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
 import { AddressTypeIcon } from "./AddressTypeIcon";
-import { caCasherClient } from "../utils/caCasherClient";
 import styles from "./NFTCard.module.css";
 
 import yachtIcon from "../assets/icons/yacht.svg";
@@ -21,6 +20,7 @@ import fireIcon from "../assets/icons/fire.svg";
 import copyIcon from "../assets/icons/copy.svg";
 import backpackIcon from "../assets/icons/backpack.svg";
 import discordIcon from "../assets/icons/discord.png";
+import creatorIcon from "../assets/icons/creator.svg";
 import { Spinner } from "./Spinner";
 import { TbaService } from "../utils/tbaService";
 
@@ -48,25 +48,13 @@ export const NFTCard: React.FC<NFTCardProps> = ({
   const [transferring, setTransferring] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [recipientAddress, setRecipientAddress] = useState("");
-  const [ownerMemberInfo, setOwnerMemberInfo] = useState<MemberInfo | null>(
-    null
-  );
   const [creatorAddress, setCreatorAddress] = useState<string | null>(null);
-  const [creatorMemberInfo, setCreatorMemberInfo] = useState<MemberInfo | null>(
-    null
-  );
   const [hasTBA, setHasTBA] = useState(false);
   const [tbaAccountAddress, setTbaAccountAddress] = useState<string | null>(
     null
   );
-  const [ownerIsTBA, setOwnerIsTBA] = useState(false);
-  const [ownerTBAImage, setOwnerTBAImage] = useState<string | null>(null);
-  const [ownerTBAName, setOwnerTBAName] = useState<string | null>(null);
-  const [creatorIsTBA, setCreatorIsTBA] = useState(false);
-  const [creatorTBAImage, setCreatorTBAImage] = useState<string | null>(null);
-  const [creatorTBAName, setCreatorTBAName] = useState<string | null>(null);
-  const [ownerCreatorName, setOwnerCreatorName] = useState<string>("");
-  const [creatorCreatorName, setCreatorCreatorName] = useState<string>("");
+
+  const addressInfo = useOwnerAndCreatorInfo(token.owner, creatorAddress);
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -90,43 +78,6 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     fetchMetadata();
   }, [token.tokenURI, token.contractAddress]);
 
-  // Owner情報を取得（Discord情報とTBA情報の両方）
-  useEffect(() => {
-    const fetchOwnerInfo = async () => {
-      if (!token.owner) return;
-
-      console.log(`🔍 NFTCard: Fetching owner info for ${token.owner}`);
-
-      // Discordメンバー情報を取得
-      const memberInfo = await memberService.getMemberInfo(token.owner);
-      setOwnerMemberInfo(memberInfo);
-
-      // Creator名を取得
-      try {
-        const ownerName = await caCasherClient.call('getCreatorName', [token.owner]);
-        if (ownerName && ownerName.trim()) {
-          setOwnerCreatorName(ownerName);
-        }
-      } catch (err) {
-        console.warn("Failed to fetch owner creator name:", err);
-      }
-
-      // TBAアカウントかどうかをチェック
-      const tbaService = new TbaService();
-      const isTBA = await tbaService.isTBAAccount(token.owner);
-      setOwnerIsTBA(isTBA);
-
-      // TBAの場合、ソースNFTの画像と名前を取得
-      if (isTBA) {
-        const tbaImage = await tbaService.getTBASourceNFTImage(token.owner);
-        const tbaName = await tbaService.getTBASourceNFTName(token.owner);
-        setOwnerTBAImage(tbaImage);
-        setOwnerTBAName(tbaName);
-      }
-    };
-
-    fetchOwnerInfo();
-  }, [token.owner]);
 
   // TBA情報を取得（TBA機能が有効で、対象コントラクトの場合のみ）
   useEffect(() => {
@@ -172,93 +123,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     fetchCreator();
   }, [token.contractAddress, token.tokenId, token.id]);
 
-  // Creator情報を取得（Discord情報とTBA情報の両方）
-  useEffect(() => {
-    const fetchCreatorInfo = async () => {
-      if (!creatorAddress) {
-        setCreatorMemberInfo(null);
-        setCreatorIsTBA(false);
-        setCreatorTBAImage(null);
-        setCreatorTBAName(null);
-        return;
-      }
 
-      try {
-        // Discordメンバー情報を取得
-        const memberInfo = await memberService.getMemberInfo(creatorAddress);
-        setCreatorMemberInfo(memberInfo);
-
-        // Creator名を取得
-        try {
-          const creatorName = await caCasherClient.call('getCreatorName', [creatorAddress]);
-          if (creatorName && creatorName.trim()) {
-            setCreatorCreatorName(creatorName);
-          }
-        } catch (err) {
-          console.warn("Failed to fetch creator creator name:", err);
-        }
-
-        // TBAアカウントかどうかをチェック
-        const tbaService = new TbaService();
-        const isTBA = await tbaService.isTBAAccount(creatorAddress);
-        setCreatorIsTBA(isTBA);
-
-        // TBAの場合、ソースNFTの画像と名前を取得
-        if (isTBA) {
-          const tbaImage = await tbaService.getTBASourceNFTImage(
-            creatorAddress
-          );
-          const tbaName = await tbaService.getTBASourceNFTName(creatorAddress);
-          setCreatorTBAImage(tbaImage);
-          setCreatorTBAName(tbaName);
-        }
-      } catch (err) {
-        console.error("Failed to fetch creator info:", err);
-        setCreatorMemberInfo(null);
-        setCreatorIsTBA(false);
-        setCreatorTBAImage(null);
-        setCreatorTBAName(null);
-      }
-    };
-
-    fetchCreatorInfo();
-  }, [creatorAddress]);
-
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  // 表示名を優先度に従って取得（省略なし）
-  const getDisplayName = (
-    memberInfo: MemberInfo | null,
-    address: string,
-    isTBA: boolean = false,
-    tbaName: string | null = null,
-    creatorName: string = ""
-  ) => {
-    // 優先度: getCreatorName > TBA名 > Discord情報
-    if (creatorName) {
-      return creatorName;
-    }
-
-    // TBAの場合はNFT名を優先
-    if (isTBA && tbaName) {
-      return tbaName;
-    }
-
-    if (!memberInfo) return formatAddress(address);
-
-    // 優先度: Nick > Name > Username > EOA
-    return (
-      memberInfo.Nick ||
-      memberInfo.nickname ||
-      memberInfo.Name ||
-      memberInfo.name ||
-      memberInfo.Username ||
-      memberInfo.username ||
-      formatAddress(address)
-    );
-  };
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -273,8 +138,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     e.preventDefault();
     e.stopPropagation();
 
-    if (ownerMemberInfo?.DiscordId || ownerMemberInfo?.discord_id) {
-      const discordId = ownerMemberInfo.DiscordId || ownerMemberInfo.discord_id;
+    const memberInfo = addressInfo.owner.memberInfo;
+    if (memberInfo?.DiscordId || memberInfo?.discord_id) {
+      const discordId = memberInfo.DiscordId || memberInfo.discord_id;
       await copyToClipboard(discordId);
     }
   };
@@ -283,9 +149,9 @@ export const NFTCard: React.FC<NFTCardProps> = ({
     e.preventDefault();
     e.stopPropagation();
 
-    if (creatorMemberInfo?.DiscordId || creatorMemberInfo?.discord_id) {
-      const discordId =
-        creatorMemberInfo.DiscordId || creatorMemberInfo.discord_id;
+    const memberInfo = addressInfo.creator.memberInfo;
+    if (memberInfo?.DiscordId || memberInfo?.discord_id) {
+      const discordId = memberInfo.DiscordId || memberInfo.discord_id;
       await copyToClipboard(discordId);
     }
   };
@@ -484,62 +350,59 @@ export const NFTCard: React.FC<NFTCardProps> = ({
             <span className={styles.label}>Owner:</span>
             <div className={styles.ownerContainer}>
               {/* アイコン表示 */}
-              {ownerIsTBA && ownerTBAImage ? (
-                // TBAの場合はソースNFTの画像を表示
-                <img
-                  src={ownerTBAImage}
-                  alt="TBA Account"
-                  width="20"
-                  height="20"
-                  style={{
-                    borderRadius: "50%",
-                    marginRight: "6px",
-                    cursor: "pointer",
-                    border: "2px solid #FF6B35",
-                  }}
-                  title="TBA Account (Token Bound Account)"
-                  onClick={() => copyToClipboard(token.owner || '')}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              ) : ownerMemberInfo ? (
-                // Discordユーザーの場合はDiscordアイコンを表示
-                <img
-                  src={ownerMemberInfo.Icon || ownerMemberInfo.avatar_url || discordIcon}
-                  alt="Discord User"
-                  width="20"
-                  height="20"
-                  style={{
-                    borderRadius: "50%",
-                    marginRight: "6px",
-                    cursor: "pointer",
-                    border: "2px solid #5865F2",
-                  }}
-                  title={`Copy Discord ID: ${
-                    ownerMemberInfo.DiscordId ||
-                    ownerMemberInfo.discord_id ||
-                    "Not available"
-                  }`}
-                  onClick={handleOwnerIconClick}
-                  onError={(e) => {
-                    if (e.currentTarget.src !== discordIcon) {
-                      console.error('Failed to load Discord avatar, using default icon');
-                      e.currentTarget.src = discordIcon;
-                    }
-                  }}
-                />
-              ) : null}
+              {(() => {
+                const avatarUrl = AddressDisplayUtils.getAvatarUrlWithCreator(
+                  addressInfo.owner.creatorName,
+                  addressInfo.owner.memberInfo,
+                  addressInfo.owner.tbaInfo?.tbaImage,
+                  creatorIcon
+                );
+                
+                if (!avatarUrl) return null;
+
+                // アイコンの種類によってスタイルを決定
+                const isTBA = addressInfo.owner.tbaInfo?.isTBA;
+                const isDiscord = !!addressInfo.owner.memberInfo;
+                const isCreatorOnly = AddressDisplayUtils.isCreatorAccount(addressInfo.owner.creatorName) && !isDiscord;
+
+                const borderColor = isTBA ? "#FF6B35" : "#5865F2";
+                const title = isTBA ? "TBA Account (Token Bound Account)" :
+                             isDiscord && AddressDisplayUtils.isCreatorAccount(addressInfo.owner.creatorName) ? "Creator (Discord Member)" :
+                             isDiscord ? "Discord User" :
+                             isCreatorOnly ? "Creator Account" :
+                             "EOA Address";
+
+                const clickAction = isDiscord ? handleOwnerIconClick : () => copyToClipboard(token.owner || '');
+
+                return (
+                  <img
+                    src={avatarUrl}
+                    alt={isTBA ? "TBA Account" : isDiscord ? "Discord User" : "Creator"}
+                    width="20"
+                    height="20"
+                    style={{
+                      borderRadius: "50%",
+                      marginRight: "6px",
+                      cursor: "pointer",
+                      border: `2px solid ${borderColor}`,
+                    }}
+                    title={title}
+                    onClick={clickAction}
+                    onError={(e) => {
+                      if (isDiscord && e.currentTarget.src !== discordIcon) {
+                        console.error('Failed to load Discord avatar, using default icon');
+                        e.currentTarget.src = discordIcon;
+                      } else {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }
+                    }}
+                  />
+                );
+              })()}
 
               {/* 表示名 */}
               <Link to={`/own/${token.owner || ''}`} className={styles.nameLink}>
-                {getDisplayName(
-                  ownerMemberInfo,
-                  token.owner || '',
-                  ownerIsTBA,
-                  ownerTBAName,
-                  ownerCreatorName
-                )}
+                {addressInfo.owner.displayName}
               </Link>
 
               <button
@@ -558,69 +421,66 @@ export const NFTCard: React.FC<NFTCardProps> = ({
               <span className={styles.label}>Creator:</span>
               <div className={styles.ownerContainer}>
                 {/* アイコン表示 */}
-                {creatorIsTBA && creatorTBAImage ? (
-                  // TBAの場合はソースNFTの画像を表示
-                  <img
-                    src={creatorTBAImage}
-                    alt="TBA Creator"
-                    width="20"
-                    height="20"
-                    style={{
-                      borderRadius: "50%",
-                      marginRight: "6px",
-                      cursor: "pointer",
-                      border: "2px solid #FF6B35",
-                    }}
-                    title="TBA Creator (Token Bound Account)"
-                    onClick={() => copyToClipboard(creatorAddress)}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                ) : creatorMemberInfo ? (
-                  // Discordユーザーの場合はDiscordアイコンを表示
-                  <img
-                    src={creatorMemberInfo.Icon || creatorMemberInfo.avatar_url || discordIcon}
-                    alt="Discord Creator"
-                    width="20"
-                    height="20"
-                    style={{
-                      borderRadius: "50%",
-                      marginRight: "6px",
-                      cursor: "pointer",
-                      border: "2px solid #5865F2",
-                    }}
-                    title={`Copy Discord ID: ${
-                      creatorMemberInfo.DiscordId ||
-                      creatorMemberInfo.discord_id ||
-                      "Not available"
-                    }`}
-                    onClick={handleCreatorIconClick}
-                    onError={(e) => {
-                      if (e.currentTarget.src !== discordIcon) {
-                        console.error('Failed to load Discord avatar, using default icon');
-                        e.currentTarget.src = discordIcon;
-                      }
-                    }}
-                  />
-                ) : null}
+                {(() => {
+                  const avatarUrl = AddressDisplayUtils.getAvatarUrlWithCreator(
+                    addressInfo.creator.creatorName,
+                    addressInfo.creator.memberInfo,
+                    addressInfo.creator.tbaInfo?.tbaImage,
+                    creatorIcon
+                  );
+                  
+                  if (!avatarUrl) return null;
+
+                  // アイコンの種類によってスタイルを決定
+                  const isTBA = addressInfo.creator.tbaInfo?.isTBA;
+                  const isDiscord = !!addressInfo.creator.memberInfo;
+                  const isCreatorOnly = AddressDisplayUtils.isCreatorAccount(addressInfo.creator.creatorName) && !isDiscord;
+
+                  const borderColor = isTBA ? "#FF6B35" : "#5865F2";
+                  const title = isTBA ? "TBA Creator (Token Bound Account)" :
+                               isDiscord && AddressDisplayUtils.isCreatorAccount(addressInfo.creator.creatorName) ? "Creator (Discord Member)" :
+                               isDiscord ? "Discord Creator" :
+                               isCreatorOnly ? "Creator Account" :
+                               "EOA Address";
+
+                  const clickAction = isDiscord ? handleCreatorIconClick : () => copyToClipboard(creatorAddress || '');
+
+                  return (
+                    <img
+                      src={avatarUrl}
+                      alt={isTBA ? "TBA Creator" : isDiscord ? "Discord Creator" : "Creator"}
+                      width="20"
+                      height="20"
+                      style={{
+                        borderRadius: "50%",
+                        marginRight: "6px",
+                        cursor: "pointer",
+                        border: `2px solid ${borderColor}`,
+                      }}
+                      title={title}
+                      onClick={clickAction}
+                      onError={(e) => {
+                        if (isDiscord && e.currentTarget.src !== discordIcon) {
+                          console.error('Failed to load Discord avatar, using default icon');
+                          e.currentTarget.src = discordIcon;
+                        } else {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }
+                      }}
+                    />
+                  );
+                })()}
 
                 {/* 表示名 */}
                 <Link
                   to={`/creator/${creatorAddress}`}
                   className={styles.nameLink}
                 >
-                  {getDisplayName(
-                    creatorMemberInfo,
-                    creatorAddress,
-                    creatorIsTBA,
-                    creatorTBAName,
-                    creatorCreatorName
-                  )}
+                  {addressInfo.creator.displayName}
                 </Link>
 
                 <button
-                  onClick={() => copyToClipboard(creatorAddress)}
+                  onClick={() => copyToClipboard(creatorAddress || '')}
                   className={styles.copyButton}
                   title="Copy full address"
                 >
@@ -678,7 +538,7 @@ export const NFTCard: React.FC<NFTCardProps> = ({
                   to={`/own/${tbaAccountAddress}`}
                   className={styles.nameLink}
                 >
-                  {metadata?.name || formatAddress(tbaAccountAddress)}
+                  {metadata?.name || AddressDisplayUtils.formatAddress(tbaAccountAddress)}
                 </Link>
 
                 <button

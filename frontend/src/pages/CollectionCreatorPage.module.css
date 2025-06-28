@@ -137,6 +137,9 @@
 .avatarContainer {
   position: relative;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .avatar {
@@ -149,8 +152,8 @@
 
 .discordBadge {
   position: absolute;
-  bottom: -4px;
-  right: -4px;
+  bottom: 0px;
+  right: 0px;
   background: #5865F2;
   color: white;
   font-size: 0.6rem;
@@ -159,6 +162,22 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  transform: translate(25%, 25%);
+}
+
+.creatorBadge {
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  background: #FF6B35;
+  color: white;
+  font-size: 0.6rem;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transform: translate(25%, 25%);
 }
 
 .defaultAvatar {

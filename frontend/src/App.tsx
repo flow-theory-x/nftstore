@@ -16,7 +16,11 @@ const App: React.FC = () => {
     <Router>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/collection" replace />} />
+          <Route index element={
+            <Suspense fallback={<div>Loading...</div>}>
+              <CollectionPage />
+            </Suspense>
+          } />
           <Route path="tokens" element={
             <Suspense fallback={<div>Loading...</div>}>
               <TokensPage />
@@ -35,6 +39,11 @@ const App: React.FC = () => {
           <Route path="token/:contractAddress/:tokenId" element={
             <Suspense fallback={<div>Loading...</div>}>
               <TokenDetailPage />
+            </Suspense>
+          } />
+          <Route path="own" element={
+            <Suspense fallback={<div>Loading...</div>}>
+              <OwnedTokensPage />
             </Suspense>
           } />
           <Route path="own/:address" element={
@@ -57,17 +66,7 @@ const App: React.FC = () => {
               <MintPage />
             </Suspense>
           } />
-          <Route path="collection" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <CollectionPage />
-            </Suspense>
-          } />
-          <Route path="collection/:contractAddress" element={
-            <Suspense fallback={<div>Loading...</div>}>
-              <CollectionPage />
-            </Suspense>
-          } />
-          <Route path="collection/creator" element={
+          <Route path="creator" element={
             <Suspense fallback={<div>Loading...</div>}>
               <CollectionCreatorPage />
             </Suspense>
@@ -77,6 +76,9 @@ const App: React.FC = () => {
               <CreatorPage />
             </Suspense>
           } />
+          {/* 後方互換性のためのリダイレクト */}
+          <Route path="collection" element={<Navigate to="/" replace />} />
+          <Route path="collection/creator" element={<Navigate to="/creator" replace />} />
         </Route>
       </Routes>
     </Router>

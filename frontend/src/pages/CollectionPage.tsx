@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { CONTRACT_ADDRESS, OPENSEA_NETWORK } from "../constants";
+import { CONTRACT_ADDRESS, OPENSEA_NETWORK, TBA_REGISTRY_ADDRESS, TBA_ACCOUNT_IMPLEMENTATION } from "../constants";
 import { NftContractService } from "../utils/nftContract";
 import { MemberService } from "../utils/memberService";
 import { Spinner } from "../components/Spinner";
 import copyIcon from "../assets/icons/copy.svg";
 import discordIcon from "../assets/icons/discord.png";
+import creatorIcon from "../assets/icons/creator.svg";
+import { withCACasher } from "../utils/caCasherClient";
+import { useAddressInfo } from "../hooks/useAddressInfo";
+import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
 import styles from "./CollectionPage.module.css";
 
 interface ContractInfo {
@@ -19,6 +23,106 @@ interface ContractInfo {
   creators: string[];
 }
 
+interface CreatorPreviewProps {
+  creator: string;
+  index: number;
+}
+
+const CreatorPreview: React.FC<CreatorPreviewProps> = ({ creator, index }) => {
+  const addressInfo = useAddressInfo(creator);
+  
+  // getCreatorNameで名前が取得できるCreatorのみ表示
+  if (!AddressDisplayUtils.isCreatorAccount(addressInfo.creatorName)) {
+    return null;
+  }
+  
+  const avatarUrl = AddressDisplayUtils.getAvatarUrlWithCreator(
+    addressInfo.creatorName,
+    addressInfo.memberInfo,
+    addressInfo.tbaInfo?.tbaImage,
+    creatorIcon
+  );
+  
+  const isCreator = AddressDisplayUtils.isCreatorAccount(addressInfo.creatorName);
+  const borderColor = isCreator ? "#FF6B35" : "#5865F2";
+
+  return (
+    <a 
+      href={`/creator/${creator}`}
+      className={styles.creatorItem}
+      title={addressInfo.displayName}
+    >
+      <div className={styles.avatarContainer}>
+        <img
+          src={avatarUrl || creatorIcon}
+          alt={addressInfo.displayName}
+          className={styles.creatorAvatar}
+          style={{
+            border: `3px solid ${borderColor}`
+          }}
+          onError={(e) => {
+            if (addressInfo.memberInfo && e.currentTarget.src !== discordIcon) {
+              console.error('Failed to load Discord avatar, using Discord icon');
+              e.currentTarget.src = discordIcon;
+            } else if (e.currentTarget.src !== creatorIcon) {
+              e.currentTarget.src = creatorIcon;
+            }
+          }}
+        />
+        <div className={styles.creatorBadge}>Creator</div>
+      </div>
+      <span className={styles.creatorName}>{addressInfo.displayName}</span>
+    </a>
+  );
+};
+
+interface CreatorsListProps {
+  creators: string[];
+}
+
+const CreatorsList: React.FC<CreatorsListProps> = ({ creators }) => {
+  const [validCreators, setValidCreators] = useState<string[]>([]);
+
+  useEffect(() => {
+    // 実際にCreatorNameが取得できるCreatorのみを動的にフィルター
+    const checkValidCreators = async () => {
+      const validList: string[] = [];
+      for (const creator of creators.slice(0, 8)) { // 最大8人まで確認
+        try {
+          const contractService = new NftContractService(CONTRACT_ADDRESS);
+          const creatorName = await contractService.getCreatorName(creator);
+          if (creatorName && creatorName.trim()) {
+            validList.push(creator);
+          }
+        } catch (err) {
+          // エラーの場合はスキップ
+        }
+      }
+      setValidCreators(validList);
+    };
+
+    checkValidCreators();
+  }, [creators]);
+
+  if (validCreators.length === 0) return null;
+
+  return (
+    <div className={styles.creatorsPreview}>
+      <h4 className={styles.creatorsTitle}>Creators ({validCreators.length})</h4>
+      <div className={styles.creatorsGrid}>
+        {validCreators.slice(0, 6).map((creator, index) => (
+          <CreatorPreview key={creator} creator={creator} index={index} />
+        ))}
+        {validCreators.length > 6 && (
+          <a href="/creator" className={styles.moreCreators}>
+            +{validCreators.length - 6} more
+          </a>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const CollectionPage: React.FC = () => {
   const [nftCollectionFeatures, setNftCollectionFeatures] = useState<{
     contractAddress: string;
@@ -28,6 +132,7 @@ export const CollectionPage: React.FC = () => {
   }[]>([]);
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
   const [creatorMembers, setCreatorMembers] = useState<Map<string, any>>(new Map());
+  const [creatorNames, setCreatorNames] = useState<Map<string, string>>(new Map());
   const [loadingNft, setLoadingNft] = useState(true);
   const [loadingContractInfo, setLoadingContractInfo] = useState(true);
   const [nftLoadingMessage, setNftLoadingMessage] = useState("Loading NFT collections...");
@@ -151,6 +256,12 @@ export const CollectionPage: React.FC = () => {
       if (!contractInfo || contractInfo.creators.length === 0) {
         return;
       }
+      
+      // 既に同じクリエイターリストで取得済みの場合はスキップ
+      if (creatorMembers.size > 0 && creatorNames.size > 0) {
+        console.log('📋 Creator info already fetched, skipping...');
+        return;
+      }
 
       try {
         console.log(`🔍 Fetching Discord info for ${contractInfo.creators.length} creators`);
@@ -176,13 +287,36 @@ export const CollectionPage: React.FC = () => {
 
         setCreatorMembers(memberMap);
         console.log(`✅ Fetched Discord info for ${memberMap.size} creators`);
+
+        // Fetch creator names from contract
+        const nameMap = new Map<string, string>();
+        for (const creator of contractInfo.creators) {
+          try {
+            const contractCreatorName = await withCACasher(
+              CONTRACT_ADDRESS,
+              'getCreatorName',
+              [creator],
+              async () => {
+                const contractService = new NftContractService(CONTRACT_ADDRESS);
+                return await contractService.getCreatorName(creator);
+              }
+            );
+            if (contractCreatorName && contractCreatorName.trim()) {
+              nameMap.set(creator.toLowerCase(), contractCreatorName);
+              console.log(`📝 Creator name from contract for ${creator}:`, contractCreatorName);
+            }
+          } catch (err) {
+            console.warn(`Failed to fetch creator name for ${creator}:`, err);
+          }
+        }
+        setCreatorNames(nameMap);
       } catch (err) {
         console.error("Failed to fetch creator Discord info:", err);
       }
     };
 
     fetchCreatorMembers();
-  }, [contractInfo]);
+  }, [contractInfo?.creators]);
 
   // Discord IDをコピー
   const handleCopyDiscordId = (discordId: string) => {
@@ -224,9 +358,14 @@ export const CollectionPage: React.FC = () => {
                     <p className={styles.collectionDescription}>
                       A dynamic NFT collection featuring unique digital assets with customizable features and community-driven content.
                     </p>
+
+                    {/* Creator一覧 - getCreatorNameで取れるCreatorのみ */}
+                    {contractInfo && contractInfo.creators.length > 0 && (
+                      <CreatorsList creators={contractInfo.creators} />
+                    )}
                     
                     <div className={styles.quickActions}>
-                      <a href={`/collection/creator`} className={styles.primaryAction}>
+                      <a href="/creator" className={styles.primaryAction}>
                         👥 Browse Creators
                       </a>
                       <a href={`/mint`} className={styles.secondaryAction}>
@@ -244,7 +383,7 @@ export const CollectionPage: React.FC = () => {
                          className={styles.externalLink}>
                         🌊 OpenSea
                       </a>
-                      <a href={`/collection`} className={styles.externalLink}>
+                      <a href="/" className={styles.externalLink}>
                         ℹ️ Details
                       </a>
                     </div>
@@ -275,8 +414,20 @@ export const CollectionPage: React.FC = () => {
                 <span className={styles.infoValue}>{contractInfo.contractName}</span>
               </div>
               <div className={styles.infoItem}>
-                <span className={styles.infoLabel}>Symbol:</span>
-                <span className={styles.infoValue}>{contractInfo.symbol}</span>
+                <span className={styles.infoLabel}>NFT Contract Address:</span>
+                <div className={styles.addressContainer}>
+                  <span className={styles.infoValue}>{CONTRACT_ADDRESS}</span>
+                  <button
+                    onClick={() => handleCopyAddress(CONTRACT_ADDRESS)}
+                    className={styles.copyButton}
+                    title="Copy NFT contract address"
+                  >
+                    <img src={copyIcon} alt="Copy" width="16" height="16" />
+                  </button>
+                  {copiedAddress === CONTRACT_ADDRESS && (
+                    <span className={styles.copyTooltip}>Copied!</span>
+                  )}
+                </div>
               </div>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Total Supply:</span>
@@ -297,6 +448,38 @@ export const CollectionPage: React.FC = () => {
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Total Creators:</span>
                 <span className={styles.infoValue}>{contractInfo.creators.length}</span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.infoLabel}>TBA Registry Address:</span>
+                <div className={styles.addressContainer}>
+                  <span className={styles.infoValue}>{TBA_REGISTRY_ADDRESS}</span>
+                  <button
+                    onClick={() => handleCopyAddress(TBA_REGISTRY_ADDRESS)}
+                    className={styles.copyButton}
+                    title="Copy TBA registry address"
+                  >
+                    <img src={copyIcon} alt="Copy" width="16" height="16" />
+                  </button>
+                  {copiedAddress === TBA_REGISTRY_ADDRESS && (
+                    <span className={styles.copyTooltip}>Copied!</span>
+                  )}
+                </div>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.infoLabel}>TBA Implementation Address:</span>
+                <div className={styles.addressContainer}>
+                  <span className={styles.infoValue}>{TBA_ACCOUNT_IMPLEMENTATION}</span>
+                  <button
+                    onClick={() => handleCopyAddress(TBA_ACCOUNT_IMPLEMENTATION)}
+                    className={styles.copyButton}
+                    title="Copy TBA implementation address"
+                  >
+                    <img src={copyIcon} alt="Copy" width="16" height="16" />
+                  </button>
+                  {copiedAddress === TBA_ACCOUNT_IMPLEMENTATION && (
+                    <span className={styles.copyTooltip}>Copied!</span>
+                  )}
+                </div>
               </div>
             </div>
           ) : (

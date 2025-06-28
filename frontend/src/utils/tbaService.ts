@@ -12,7 +12,6 @@ import tbaRegistryAbi from "../../config/tba_registry_abi.json";
 import tbaAccountAbi from "../../config/tba_account_abi.json";
 import { NftContractService } from "./nftContract";
 import type { NFTToken } from "../types";
-import { tbaCache } from "./tbaCache";
 import { withCACasher } from "./caCasherClient";
 
 export interface TBAAccountInfo {
@@ -64,45 +63,18 @@ export class TbaService {
     }
   }
 
-  // キャッシュ対応のgetBalance
+  // getBalance（キャッシュなし）
   private async getCachedBalance(address: string): Promise<bigint> {
-    const cacheKey = tbaCache.getBalanceKey(address);
-    const cachedBalance = tbaCache.get<string>(cacheKey);
-    
-    if (cachedBalance !== null) {
-      console.log(`✅ Balance cache hit for ${address}`);
-      return BigInt(cachedBalance);
-    }
-
     console.log(`🔄 Fetching balance for ${address}`);
     const balance = await this.provider.getBalance(address);
-    
-    // 残高を1分間キャッシュ
-    tbaCache.set(cacheKey, balance.toString(), 60000);
-    
     return balance;
   }
 
   // TBAアカウントがデプロイされているかチェック
   async isAccountDeployed(accountAddress: string): Promise<boolean> {
     try {
-      // キャッシュを確認
-      const cacheKey = tbaCache.getCodeKey(accountAddress);
-      const cachedCode = tbaCache.get<string>(cacheKey);
-      
-      if (cachedCode !== null) {
-        console.log(`✅ Code cache hit for ${accountAddress}`);
-        return cachedCode !== "0x";
-      }
-
-      // キャッシュにない場合はRPCから取得
       console.log(`🔄 Fetching code for ${accountAddress}`);
       const code = await this.provider.getCode(accountAddress);
-      
-      // 結果をキャッシュ (デプロイ済みは5分、未デプロイは1分)
-      const ttl = code !== "0x" ? 300000 : 60000;
-      tbaCache.set(cacheKey, code, ttl);
-      
       return code !== "0x";
     } catch (error) {
       console.error("Failed to check if account is deployed:", error);
@@ -370,21 +342,8 @@ export class TbaService {
   // アドレスがTBAアカウントかどうかをチェック
   async isTBAAccount(address: string): Promise<boolean> {
     try {
-      // キャッシュを確認
-      const cacheKey = tbaCache.getCodeKey(address);
-      const cachedCode = tbaCache.get<string>(cacheKey);
-      
-      let code: string;
-      if (cachedCode !== null) {
-        console.log(`✅ Code cache hit for TBA check ${address}`);
-        code = cachedCode;
-      } else {
-        console.log(`🔄 Fetching code for TBA check ${address}`);
-        code = await this.provider.getCode(address);
-        // 結果をキャッシュ (デプロイ済みは5分、未デプロイは1分)
-        const ttl = code !== "0x" ? 300000 : 60000;
-        tbaCache.set(cacheKey, code, ttl);
-      }
+      console.log(`🔄 Fetching code for TBA check ${address}`);
+      const code = await this.provider.getCode(address);
       
       if (code === "0x") return false;
 

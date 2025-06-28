@@ -1,25 +1,41 @@
 import React, { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { NFTCard } from "../components/NFTCard";
 import { Spinner } from "../components/Spinner";
 import { NftContractService } from "../utils/nftContract";
 import type { NFTToken } from "../types";
 import { useWallet } from "../hooks/useWallet";
 import { useOwnPageWalletChange } from "../hooks/useWalletAddressChange";
+import { useAddressInfo } from "../hooks/useAddressInfo";
+import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
 import { CONTRACT_ADDRESS, isTBAEnabled } from "../constants";
-import { memberService } from "../utils/memberService";
-import { caCasherClient } from "../utils/caCasherClient";
-import type { MemberInfo } from "../types";
 import { MemberInfoCard } from "../components/MemberInfoCard";
 import { TbaService } from "../utils/tbaService";
 import styles from "./OwnedTokensPage.module.css";
 
 export const OwnedTokensPage: React.FC = () => {
+  const navigate = useNavigate();
   const { contractAddress, address } = useParams<{
     contractAddress?: string;
-    address: string;
+    address?: string;
   }>();
   const { walletState } = useWallet();
+
+  // URLでEOAが指定されていない場合の処理
+  useEffect(() => {
+    if (!address && !walletState.isConnected) {
+      // 未接続の場合はHOMEにリダイレクト
+      navigate("/", { replace: true });
+    }
+  }, [address, walletState.isConnected, navigate]);
+
+  // addressを決定（URLパラメータまたは接続中のウォレットアドレス）
+  const effectiveAddress = address || (walletState.isConnected ? walletState.address : null);
+
+  // 有効なアドレスがない場合はSpinner表示
+  if (!effectiveAddress) {
+    return <Spinner />;
+  }
   
   // ウォレットアドレス切り替え検知
   useOwnPageWalletChange();
@@ -28,10 +44,7 @@ export const OwnedTokensPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string>("");
-  const [memberInfo, setMemberInfo] = useState<MemberInfo | null>(null);
-  const [memberLoading, setMemberLoading] = useState(false);
   const [memberInfoFetched, setMemberInfoFetched] = useState(false);
-  const [creatorName, setCreatorName] = useState<string>("");
   
   // TBA-related state
   const [isTbaAccount, setIsTbaAccount] = useState(false);
@@ -45,12 +58,12 @@ export const OwnedTokensPage: React.FC = () => {
   };
 
   const isOwnAddress =
-    walletState.address?.toLowerCase() === address?.toLowerCase();
+    walletState.address?.toLowerCase() === effectiveAddress?.toLowerCase();
 
   // Check if address is TBA and get source NFT
   useEffect(() => {
     const checkTBA = async () => {
-      if (!address || !isTBAEnabled()) {
+      if (!effectiveAddress || !isTBAEnabled()) {
         setMemberInfoFetched(true);
         return;
       }
@@ -59,13 +72,13 @@ export const OwnedTokensPage: React.FC = () => {
         setTbaCheckLoading(true);
         const tbaService = new TbaService();
         
-        console.log(`🔍 Checking if ${address} is TBA account...`);
-        const isTBA = await tbaService.isTBAAccount(address);
+        console.log(`🔍 Checking if ${effectiveAddress} is TBA account...`);
+        const isTBA = await tbaService.isTBAAccount(effectiveAddress);
         setIsTbaAccount(isTBA);
         
         if (isTBA) {
           console.log(`🎯 Address is TBA, finding source NFT...`);
-          const sourceToken = await tbaService.findTBASourceToken(address);
+          const sourceToken = await tbaService.findTBASourceToken(effectiveAddress);
           setTbaSourceNFT(sourceToken);
           
           if (sourceToken) {
@@ -100,51 +113,22 @@ export const OwnedTokensPage: React.FC = () => {
     };
 
     checkTBA();
-  }, [address]);
+  }, [effectiveAddress]);
 
-  // Then, fetch member info
+  const addressInfo = useAddressInfo(effectiveAddress);
+
+  // Update memberInfoFetched when address info is loaded
   useEffect(() => {
-    const fetchMemberInfo = async () => {
-      if (!address) {
-        setMemberInfoFetched(true);
-        return;
-      }
-
-      try {
-        setMemberLoading(true);
-        console.log(`🔍 Fetching member info for: ${address}`);
-        
-        // Get creator name from contract
-        try {
-          const contractCreatorName = await caCasherClient.call('getCreatorName', [address]);
-          if (contractCreatorName && contractCreatorName.trim()) {
-            setCreatorName(contractCreatorName);
-            console.log("📝 Creator name from contract:", contractCreatorName);
-          }
-        } catch (err) {
-          console.warn("Failed to fetch creator name from contract:", err);
-        }
-        
-        const info = await memberService.getMemberInfo(address);
-        setMemberInfo(info);
-        console.log(`📋 Member info result:`, info);
-      } catch (error) {
-        console.error('Failed to fetch member info:', error);
-        setMemberInfo(null);
-      } finally {
-        setMemberLoading(false);
-        setMemberInfoFetched(true);
-      }
-    };
-
-    fetchMemberInfo();
-  }, [address]);
+    if (!addressInfo.loading && effectiveAddress) {
+      setMemberInfoFetched(true);
+    }
+  }, [addressInfo.loading, effectiveAddress]);
 
 
   // Fetch tokens when member info is ready
   useEffect(() => {
     const fetchTokens = async () => {
-      if (!address || !memberInfoFetched) {
+      if (!effectiveAddress || !memberInfoFetched) {
         setLoading(false);
         return;
       }
@@ -179,7 +163,7 @@ export const OwnedTokensPage: React.FC = () => {
         };
 
         await contractService.getTokensByOwnerWithProgress(
-          address,
+          effectiveAddress,
           progressHandler,
           tokenReadyHandler
         );
@@ -197,11 +181,8 @@ export const OwnedTokensPage: React.FC = () => {
     };
 
     fetchTokens();
-  }, [contractAddress, address, memberInfoFetched]);
+  }, [contractAddress, effectiveAddress, memberInfoFetched]);
 
-  const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -218,14 +199,14 @@ export const OwnedTokensPage: React.FC = () => {
         <h1 className={styles.title}>
           {isOwnAddress
             ? "My Tokens"
-            : `Tokens owned by ${formatAddress(address || "")}`}
+            : `Tokens owned by ${AddressDisplayUtils.formatAddress(effectiveAddress || "")}`}
         </h1>
         
         {/* メンバー情報を先に表示 */}
         <MemberInfoCard
-          memberInfo={memberInfo}
-          loading={memberLoading}
-          address={address || ""}
+          memberInfo={addressInfo.memberInfo}
+          loading={addressInfo.loading}
+          address={effectiveAddress || ""}
           isTbaAccount={isTbaAccount}
           tbaSourceNFT={tbaSourceNFTDetail}
           tbaCheckLoading={tbaCheckLoading}
@@ -257,19 +238,19 @@ export const OwnedTokensPage: React.FC = () => {
         <h1 className={styles.title}>
           {isOwnAddress
             ? "My Tokens"
-            : `Tokens owned by ${formatAddress(address || "")}`}
+            : `Tokens owned by ${AddressDisplayUtils.formatAddress(effectiveAddress || "")}`}
         </h1>
       </div>
 
       {/* メンバー情報表示 */}
       <MemberInfoCard
-        memberInfo={memberInfo}
-        loading={memberLoading}
-        address={address || ""}
+        memberInfo={addressInfo.memberInfo}
+        loading={addressInfo.loading}
+        address={effectiveAddress || ""}
         isTbaAccount={isTbaAccount}
         tbaSourceNFT={tbaSourceNFTDetail}
         tbaCheckLoading={tbaCheckLoading}
-        creatorName={creatorName}
+        creatorName={addressInfo.creatorName}
       />
 
       <div className={styles.stats}>
@@ -321,7 +302,7 @@ export const OwnedTokensPage: React.FC = () => {
                 </h2>
                 <div className={styles.contractAddressContainer}>
                   <span className={styles.contractAddress}>
-                    {formatAddress(contractAddress || CONTRACT_ADDRESS)}
+                    {AddressDisplayUtils.formatAddress(contractAddress || CONTRACT_ADDRESS)}
                   </span>
                   <button
                     onClick={() =>

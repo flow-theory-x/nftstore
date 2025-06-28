@@ -28,6 +28,7 @@ export const useWallet = () => {
   const [error, setError] = useState<string | null>(null);
 
   const updateWalletState = useCallback((newState: WalletState) => {
+    console.log('📝 Updating wallet state:', newState);
     setWalletState(newState);
     // Save to localStorage with error handling
     try {
@@ -100,11 +101,13 @@ export const useWallet = () => {
     
     try {
       const { address, chainId } = await walletService.connectWallet();
+      console.log('🔗 Wallet connected:', { address, chainId });
       updateWalletState({
         isConnected: true,
         address,
         chainId,
       });
+      console.log('🔗 Wallet state updated after connection');
       return { address, chainId };
     } catch (error: any) {
       setError(error.message || 'Failed to connect wallet');
@@ -116,6 +119,7 @@ export const useWallet = () => {
   }, [isLoading, updateWalletState]);
 
   const disconnectWallet = useCallback(() => {
+    console.log('🔌 Disconnecting wallet');
     updateWalletState({
       isConnected: false,
       address: null,
@@ -124,73 +128,12 @@ export const useWallet = () => {
     walletService.removeAllListeners();
     // Clear localStorage
     localStorage.removeItem('wallet-state');
+    console.log('🔌 Wallet disconnected');
   }, [updateWalletState]);
 
   const getSigner = useCallback(() => {
     return walletService.getSigner();
   }, []);
-
-  useEffect(() => {
-    // Only check connection if we have a saved wallet state that indicates connection
-    const savedState = walletState.isConnected;
-    if (savedState) {
-      checkConnection();
-    }
-
-    const handleAccountsChanged = (accounts: string[]) => {
-      if (accounts.length === 0) {
-        disconnectWallet();
-      } else {
-        const oldAddress = walletState.address;
-        const newAddress = accounts[0];
-        
-        setWalletState(prev => {
-          const newState = {
-            ...prev,
-            address: newAddress,
-          };
-          try {
-            localStorage.setItem('wallet-state', JSON.stringify(newState));
-          } catch (error: any) {
-            if (error.name === 'QuotaExceededError') {
-              console.warn('Storage quota exceeded when updating wallet state');
-            }
-          }
-          return newState;
-        });
-        
-        // ウォレットアドレスが変更された場合の処理
-        if (oldAddress && newAddress && oldAddress.toLowerCase() !== newAddress.toLowerCase()) {
-          console.log(`🔄 Wallet switched from ${oldAddress} to ${newAddress}`);
-          handleWalletSwitch(oldAddress, newAddress);
-        }
-      }
-    };
-
-    const handleChainChanged = (chainId: string) => {
-      setWalletState(prev => {
-        const newState = {
-          ...prev,
-          chainId: parseInt(chainId, 16),
-        };
-        try {
-          localStorage.setItem('wallet-state', JSON.stringify(newState));
-        } catch (error: any) {
-          if (error.name === 'QuotaExceededError') {
-            console.warn('Storage quota exceeded when updating chain state');
-          }
-        }
-        return newState;
-      });
-    };
-
-    walletService.onAccountsChanged(handleAccountsChanged);
-    walletService.onChainChanged(handleChainChanged);
-
-    return () => {
-      walletService.removeAllListeners();
-    };
-  }, [checkConnection, disconnectWallet]);
 
   const handleWalletSwitch = useCallback((oldAddress: string, newAddress: string) => {
     const currentPath = location.pathname;
@@ -231,6 +174,57 @@ export const useWallet = () => {
     // その他のページでは特別な処理は行わず、ナビゲーション更新のみ
     console.log(`ℹ️ Wallet switched but no redirect needed for path: ${currentPath}`);
   }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    // Only check connection if we have a saved wallet state that indicates connection
+    const savedState = walletState.isConnected;
+    if (savedState) {
+      checkConnection();
+    }
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      console.log('🔄 Accounts changed:', accounts);
+      if (accounts.length === 0) {
+        console.log('🔌 Disconnecting wallet - no accounts');
+        disconnectWallet();
+      } else {
+        const oldAddress = walletState.address;
+        const newAddress = accounts[0];
+        
+        console.log(`🔄 Account change: ${oldAddress} -> ${newAddress}`);
+        
+        setWalletState(prev => {
+          const newState = {
+            ...prev,
+            isConnected: true,
+            address: newAddress,
+          };
+          
+          // ウォレットアドレスが変更された場合の処理
+          if (oldAddress && newAddress && oldAddress.toLowerCase() !== newAddress.toLowerCase()) {
+            console.log(`🔄 Wallet switched from ${oldAddress} to ${newAddress}`);
+            handleWalletSwitch(oldAddress, newAddress);
+          }
+          
+          return newState;
+        });
+      }
+    };
+
+    const handleChainChanged = (chainId: string) => {
+      setWalletState(prev => ({
+        ...prev,
+        chainId: parseInt(chainId, 16),
+      }));
+    };
+
+    walletService.onAccountsChanged(handleAccountsChanged);
+    walletService.onChainChanged(handleChainChanged);
+
+    return () => {
+      walletService.removeAllListeners();
+    };
+  }, [checkConnection, disconnectWallet]);
 
   return {
     walletState,

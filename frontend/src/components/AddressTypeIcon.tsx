@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { memberService } from "../utils/memberService";
-import { TbaService } from "../utils/tbaService";
-import { CONTRACT_ADDRESS } from "../constants";
+import React from "react";
+import { useAddressInfo } from "../hooks/useAddressInfo";
+import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
+import creatorIcon from "../assets/icons/creator.svg";
 
 interface AddressTypeIconProps {
   address: string;
@@ -12,9 +12,7 @@ export const AddressTypeIcon: React.FC<AddressTypeIconProps> = ({
   address, 
   size = "medium" 
 }) => {
-  const [addressType, setAddressType] = useState<"loading" | "discord" | "tba" | "eoa">("loading");
-  const [iconUrl, setIconUrl] = useState<string>("");
-  const [tbaSourceNFT, setTbaSourceNFT] = useState<any>(null);
+  const addressInfo = useAddressInfo(address);
 
   const sizeStyles = {
     small: { width: "24px", height: "24px", fontSize: "16px" },
@@ -22,62 +20,11 @@ export const AddressTypeIcon: React.FC<AddressTypeIconProps> = ({
     large: { width: "40px", height: "40px", fontSize: "24px" }
   };
 
-  useEffect(() => {
-    const checkAddressType = async () => {
-      if (!address || address.length !== 42) {
-        setAddressType("eoa");
-        return;
-      }
+  if (!address || address.length !== 42) {
+    return null;
+  }
 
-      try {
-        setAddressType("loading");
-
-        // 1. Check if it's a TBA
-        const tbaService = new TbaService();
-        const isTBA = await tbaService.isTBAAccount(address);
-        
-        if (isTBA) {
-          setAddressType("tba");
-          
-          // Get TBA source NFT icon
-          try {
-            const imageUrl = await tbaService.getTBASourceNFTImage(address);
-            const nftName = await tbaService.getTBASourceNFTName(address);
-            
-            if (imageUrl) {
-              setIconUrl(imageUrl);
-            }
-            
-            // Store some basic info for tooltip
-            setTbaSourceNFT({ name: nftName });
-          } catch (error) {
-            console.error("Error fetching TBA source NFT:", error);
-          }
-          
-          return;
-        }
-
-        // 2. Check if it's a Discord user
-        const memberInfo = await memberService.getMemberInfo(address);
-        
-        if (memberInfo) {
-          setAddressType("discord");
-          setIconUrl(memberInfo.Icon || memberInfo.avatar_url || "");
-          return;
-        }
-
-        // 3. Default to EOA
-        setAddressType("eoa");
-      } catch (error) {
-        console.error("Error checking address type:", error);
-        setAddressType("eoa");
-      }
-    };
-
-    checkAddressType();
-  }, [address]);
-
-  if (addressType === "loading") {
+  if (addressInfo.loading) {
     return (
       <span 
         style={{
@@ -95,7 +42,9 @@ export const AddressTypeIcon: React.FC<AddressTypeIconProps> = ({
     );
   }
 
-  if (addressType === "discord") {
+  if (addressInfo.memberInfo) {
+    const iconUrl = AddressDisplayUtils.getAvatarUrl(addressInfo.memberInfo);
+    
     return (
       <span 
         style={{
@@ -108,7 +57,9 @@ export const AddressTypeIcon: React.FC<AddressTypeIconProps> = ({
           overflow: "hidden",
           backgroundColor: "#5865F2"
         }}
-        title="Discord User"
+        title={AddressDisplayUtils.isCreatorAccount(addressInfo.creatorName) 
+          ? "Creator (Discord Member)" 
+          : "Discord User"}
       >
         {iconUrl ? (
           <img 
@@ -129,7 +80,9 @@ export const AddressTypeIcon: React.FC<AddressTypeIconProps> = ({
     );
   }
 
-  if (addressType === "tba") {
+  if (addressInfo.tbaInfo?.isTBA) {
+    const iconUrl = addressInfo.tbaInfo.tbaImage;
+    
     return (
       <span 
         style={{
@@ -144,7 +97,7 @@ export const AddressTypeIcon: React.FC<AddressTypeIconProps> = ({
           overflow: "hidden",
           border: iconUrl ? "2px solid #FF6B35" : "none"
         }}
-        title={`Token Bound Account${tbaSourceNFT?.name ? ` (${tbaSourceNFT.name})` : ""}`}
+        title={`Token Bound Account${addressInfo.tbaInfo.tbaName ? ` (${addressInfo.tbaInfo.tbaName})` : ""}`}
       >
         {iconUrl ? (
           <img 
@@ -161,6 +114,35 @@ export const AddressTypeIcon: React.FC<AddressTypeIconProps> = ({
             🎒
           </span>
         )}
+      </span>
+    );
+  }
+
+  // Creator account without Discord info
+  if (AddressDisplayUtils.isCreatorAccount(addressInfo.creatorName)) {
+    return (
+      <span 
+        style={{
+          ...sizeStyles[size],
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginLeft: "8px",
+          borderRadius: "50%",
+          overflow: "hidden",
+          backgroundColor: "#FF6B35"
+        }}
+        title="Creator Account"
+      >
+        <img 
+          src={creatorIcon} 
+          alt="Creator" 
+          style={{ 
+            width: "100%", 
+            height: "100%", 
+            objectFit: "cover" 
+          }} 
+        />
       </span>
     );
   }

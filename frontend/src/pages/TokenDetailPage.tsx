@@ -3,6 +3,8 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { NftContractService } from "../utils/nftContract";
 import { TbaService } from "../utils/tbaService";
 import { useWallet } from "../hooks/useWallet";
+import { useOwnerAndCreatorInfo } from "../hooks/useAddressInfo";
+import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
 import {
   CONTRACT_ADDRESS,
   OPENSEA_BASE_URL,
@@ -19,7 +21,6 @@ import backpackIcon from "../assets/icons/backpack.svg";
 import fireIcon from "../assets/icons/fire.svg";
 import { ModelViewer } from "../components/ModelViewer";
 import { AddressTypeIcon } from "../components/AddressTypeIcon";
-import { caCasherClient } from "../utils/caCasherClient";
 import { NFTCard } from "../components/NFTCard";
 import { Spinner } from "../components/Spinner";
 
@@ -44,8 +45,6 @@ export const TokenDetailPage: React.FC = () => {
   const [modelLoadError, setModelLoadError] = useState(false);
   const [originalTokenInfo, setOriginalTokenInfo] = useState<any>(null);
   const [loadingOriginalInfo, setLoadingOriginalInfo] = useState(false);
-  const [ownerCreatorName, setOwnerCreatorName] = useState<string>("");
-  const [creatorCreatorName, setCreatorCreatorName] = useState<string>("");
 
   // TBA関連の状態
   const [creatingTBA, setCreatingTBA] = useState(false);
@@ -113,29 +112,6 @@ export const TokenDetailPage: React.FC = () => {
         setCreatorAddress(creator);
         setCreatorLoading(false);
 
-        // Get creator names for owner and creator
-        if (owner) {
-          try {
-            const ownerName = await caCasherClient.call('getCreatorName', [owner]);
-            if (ownerName && ownerName.trim()) {
-              setOwnerCreatorName(ownerName);
-            }
-          } catch (err) {
-            console.warn("Failed to fetch owner creator name:", err);
-          }
-        }
-
-        if (creator) {
-          try {
-            const creatorName = await caCasherClient.call('getCreatorName', [creator]);
-            if (creatorName && creatorName.trim()) {
-              setCreatorCreatorName(creatorName);
-            }
-          } catch (err) {
-            console.warn("Failed to fetch creator creator name:", err);
-          }
-        }
-
         const tokenData: NFTToken = {
           id: tokenId,
           tokenId,
@@ -201,7 +177,9 @@ export const TokenDetailPage: React.FC = () => {
     };
 
     fetchTokenDetail();
-  }, [contractAddress, tokenId, currentContractAddress]);
+  }, [contractAddress, tokenId, currentContractAddress, walletState.address]);
+
+  const addressInfo = useOwnerAndCreatorInfo(token?.owner, creatorAddress);
 
   // TBA情報を取得（TBA機能が有効で、対象コントラクトの場合のみ）
   useEffect(() => {
@@ -259,8 +237,6 @@ export const TokenDetailPage: React.FC = () => {
 
       try {
         setLoadingTbaTokens(true);
-        const { findTBAOwnedTokens } = await import("../utils/tbaTokenFinder");
-
         console.log(
           `🔍 Searching for NFTs owned by TBA: ${tbaInfo.accountAddress}`
         );
@@ -270,19 +246,17 @@ export const TokenDetailPage: React.FC = () => {
         const contractPromises = allTargetContracts.map(
           async (contractAddress) => {
             try {
-              // トークン検索
-              const ownedTokens = await findTBAOwnedTokens(
-                tbaInfo.accountAddress,
-                contractAddress,
-                "fallback" // フォールバック検索を強制
-              );
+              // コントラクトサービスを使用してトークン検索
+              const contractService = new NftContractService(contractAddress);
+              
+              // TBA所有のトークンを検索（簡易版）
+              // 注意: この機能はパフォーマンス上の理由で制限されています
+              console.log(`⚠️ TBA token search temporarily disabled for performance reasons`);
+              const ownedTokens: string[] = [];
 
               console.log(
                 `🎯 TBA owns ${ownedTokens.length} tokens from ${contractAddress}`
               );
-
-              // コントラクト名を取得
-              const contractService = new NftContractService(contractAddress);
               let contractName = "NFTs";
               try {
                 contractName = (await contractService.getName()) || "NFTs";
@@ -422,9 +396,6 @@ export const TokenDetailPage: React.FC = () => {
     );
   };
 
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
 
   const [animationMimeType, setAnimationMimeType] = useState<string | null>(
     null
@@ -1126,7 +1097,7 @@ export const TokenDetailPage: React.FC = () => {
                 <span className={styles.propertyLabel}>Contract Address</span>
                 <div className={styles.propertyValue}>
                   <span className={styles.address}>
-                    {formatAddress(currentContractAddress)}
+                    {AddressDisplayUtils.formatAddress(currentContractAddress)}
                   </span>
                   <button
                     onClick={() => copyToClipboard(currentContractAddress)}
@@ -1150,7 +1121,7 @@ export const TokenDetailPage: React.FC = () => {
                     className={styles.ownerLink}
                     title={token.owner}
                   >
-                    {ownerCreatorName || formatAddress(token.owner)}
+                    {addressInfo.owner.displayName}
                   </Link>
                   <button
                     onClick={() => copyToClipboard(token.owner)}
@@ -1184,7 +1155,7 @@ export const TokenDetailPage: React.FC = () => {
                       className={styles.ownerLink}
                       title={parentNFTInfo.owner}
                     >
-                      {formatAddress(parentNFTInfo.owner)}
+                      {AddressDisplayUtils.formatAddress(parentNFTInfo.owner)}
                     </Link>
                     {isParentNFTOwner && (
                       <span className={styles.parentOwnerBadge}>You control this NFT</span>
@@ -1213,7 +1184,7 @@ export const TokenDetailPage: React.FC = () => {
                       }
                       className={styles.ownerLink}
                     >
-                      {creatorCreatorName || formatAddress(creatorAddress)}
+                      {addressInfo.creator.displayName}
                     </Link>
                     <button
                       onClick={() => copyToClipboard(creatorAddress)}
@@ -1257,7 +1228,7 @@ export const TokenDetailPage: React.FC = () => {
                       to={`/own/${tbaInfo.accountAddress}`}
                       className={styles.address}
                     >
-                      {formatAddress(tbaInfo.accountAddress)}
+                      {AddressDisplayUtils.formatAddress(tbaInfo.accountAddress)}
                     </Link>
                     <button
                       onClick={() => copyToClipboard(tbaInfo.accountAddress)}
