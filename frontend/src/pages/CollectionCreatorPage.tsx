@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { CONTRACT_ADDRESS } from "../constants";
 import { NftContractService } from "../utils/nftContract";
+import { eoaAddressNameResolver } from "../utils/eoaAddressNameResolver";
 import { Spinner } from "../components/Spinner";
 import { useAddressInfo } from "../hooks/useAddressInfo";
 import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
@@ -14,14 +15,17 @@ interface ContractInfo {
   contractAddress: string;
   contractName: string;
   creators: string[];
+  featuredCreators: string[];
+  totalCreators: number;
 }
 
 interface CreatorCardProps {
   creator: string;
   index: number;
+  isFeatured: boolean;
 }
 
-const CreatorCard: React.FC<CreatorCardProps> = ({ creator, index }) => {
+const CreatorCard: React.FC<CreatorCardProps> = ({ creator, index, isFeatured }) => {
   const addressInfo = useAddressInfo(creator);
   
   const avatarUrl = AddressDisplayUtils.getAvatarUrlWithCreator(
@@ -32,10 +36,22 @@ const CreatorCard: React.FC<CreatorCardProps> = ({ creator, index }) => {
   );
   
   const isCreator = AddressDisplayUtils.isCreatorAccount(addressInfo.creatorName);
+  const hasDiscord = !!addressInfo.memberInfo;
+  
+  // クリエイターアカウントの場合は常にCreatorバッジを表示（Discord情報があっても）
   const borderColor = isCreator ? "#FF6B35" : "#5865F2";
-  const badgeText = isCreator ? "Creator" : "Discord";
+  const badgeText = isCreator ? "Creator" : (hasDiscord ? "Discord" : "EOA");
   const badgeClass = isCreator ? styles.creatorBadge : styles.discordBadge;
   const discordId = addressInfo.memberInfo?.DiscordId || addressInfo.memberInfo?.discord_id;
+  
+  // Debug log
+  console.log(`🎨 CreatorCard for ${creator}:`, {
+    creatorName: addressInfo.creatorName,
+    isFeatured,
+    isCreator,
+    displayName: addressInfo.displayName,
+    memberInfo: addressInfo.memberInfo
+  });
 
   return (
     <Link 
@@ -44,17 +60,20 @@ const CreatorCard: React.FC<CreatorCardProps> = ({ creator, index }) => {
       style={{ textDecoration: 'none', color: 'inherit' }}
     >
       <div className={styles.creatorHeader}>
-        {avatarUrl ? (
+        {avatarUrl || isCreator ? (
           <div className={styles.avatarContainer}>
             <img
-              src={avatarUrl}
+              src={avatarUrl || (isCreator ? creatorIcon : discordIcon)}
               alt={`${addressInfo.displayName} avatar`}
               className={styles.avatar}
               style={{
                 border: `3px solid ${borderColor}`
               }}
               onError={(e) => {
-                if (addressInfo.memberInfo && e.currentTarget.src !== discordIcon) {
+                if (isCreator && e.currentTarget.src !== creatorIcon) {
+                  console.error('Failed to load avatar, using creator icon');
+                  e.currentTarget.src = creatorIcon;
+                } else if (addressInfo.memberInfo && e.currentTarget.src !== discordIcon) {
                   console.error('Failed to load avatar, using Discord icon');
                   e.currentTarget.src = discordIcon;
                 }
@@ -148,19 +167,30 @@ export const CollectionCreatorPage: React.FC = () => {
 
         const contractService = new NftContractService(CONTRACT_ADDRESS);
 
-        const [contractName, creators] = await Promise.all([
+        const [contractName, allCreators] = await Promise.all([
           contractService.getName().catch(() => "Unknown Collection"),
           contractService.getCreators().catch(() => []),
         ]);
 
+        // getCreatorNameで取得できるクリエイターをFeaturedとして分類
+        const featuredCreators = [];
+        for (const creator of allCreators) {
+          const creatorName = await eoaAddressNameResolver.getCreatorName(creator);
+          if (creatorName && creatorName !== creator) {
+            featuredCreators.push(creator);
+          }
+        }
+
         setContractInfo({
           contractAddress: CONTRACT_ADDRESS,
           contractName: contractName || "Unknown Collection",
-          creators: creators || [],
+          creators: allCreators,  // 全クリエイターを表示
+          featuredCreators: featuredCreators,  // Featured Creatorsのリスト
+          totalCreators: allCreators.length,
         });
 
         console.log(
-          `✅ Fetched ${creators.length} creators for ${contractName}`
+          `✅ Fetched ${featuredCreators.length} featured creators (out of ${allCreators.length} total) for ${contractName}`
         );
       } catch (err) {
         console.error("Failed to fetch creators:", err);
@@ -209,20 +239,25 @@ export const CollectionCreatorPage: React.FC = () => {
       <div className={styles.statsSection}>
         <div className={styles.statCard}>
           <span className={styles.statNumber}>
-            {contractInfo.creators.length}
+            {contractInfo.totalCreators}
           </span>
           <span className={styles.statLabel}>Total Creators</span>
         </div>
         <div className={styles.statCard}>
-          <span className={styles.statNumber}>{contractInfo.creators.length}</span>
-          <span className={styles.statLabel}>Verified Creators</span>
+          <span className={styles.statNumber}>{contractInfo.featuredCreators.length}</span>
+          <span className={styles.statLabel}>Featured Creators</span>
         </div>
       </div>
 
       {contractInfo.creators.length > 0 ? (
         <div className={styles.creatorsGrid}>
           {contractInfo.creators.map((creator, index) => (
-            <CreatorCard key={creator} creator={creator} index={index} />
+            <CreatorCard 
+              key={creator} 
+              creator={creator} 
+              index={index} 
+              isFeatured={contractInfo.featuredCreators.includes(creator)}
+            />
           ))}
         </div>
       ) : (

@@ -222,7 +222,7 @@ export const MintPage: React.FC = () => {
       }, 2000);
     } catch (err: any) {
       console.error("Mint failed:", err);
-      alert(err.message || "Failed to mint token");
+      setError(err.message || "Failed to mint token");
     } finally {
       setLoading(false);
     }

@@ -366,18 +366,64 @@ export class NftContractService {
     feeRate: number = 0,
     sbtFlag: boolean = false
   ): Promise<ethers.ContractTransactionResponse> {
+    let mintFee: string = '';
+    
     try {
       const contractWithSigner = this.contract.connect(signer);
-      const mintFee = customFee || await this.getMintFee();
+      mintFee = customFee || await this.getMintFee();
 
       const tx = await (contractWithSigner as any).mint(to, metaUrl, feeRate, sbtFlag, {
         value: ethers.parseEther(mintFee),
       });
 
       return tx;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to mint NFT:", error);
-      throw error;
+      
+      // missing revert data エラー（estimateGas失敗）の判定
+      if (error.code === 'CALL_EXCEPTION' && error.action === 'estimateGas') {
+        // トランザクションの詳細を確認
+        const from = error.transaction?.from;
+        const value = error.transaction?.value || '0';
+        
+        // ウォレット残高を確認
+        try {
+          const balance = await signer.provider?.getBalance(from);
+          const feeAmount = mintFee || customFee || await this.getMintFee();
+          const requiredAmount = ethers.parseEther(feeAmount);
+          
+          if (balance && balance < requiredAmount) {
+            const balanceInEther = ethers.formatEther(balance);
+            const requiredInEther = ethers.formatEther(requiredAmount);
+            throw new Error(`ウォレット残高が不足しています。\n必要額: ${requiredInEther} ETH\n現在の残高: ${balanceInEther} ETH`);
+          }
+        } catch (balanceError) {
+          console.error('Balance check failed:', balanceError);
+        }
+        
+        throw new Error('ガス代の見積もりに失敗しました。ウォレットの残高とネットワーク接続を確認してください。');
+      }
+      
+      // ガス不足エラーの判定
+      if (error.code === 'UNPREDICTABLE_GAS_LIMIT' || 
+          error.message?.includes('cannot estimate gas') ||
+          error.message?.includes('gas required exceeds') ||
+          error.message?.includes('insufficient funds for gas') ||
+          error.error?.message?.includes('gas')) {
+        throw new Error('ガス代が不足しています。ウォレットの残高を確認してください。');
+      }
+      
+      // その他のエラーメッセージを日本語化
+      if (error.message?.includes('user rejected')) {
+        throw new Error('トランザクションがキャンセルされました。');
+      }
+      
+      if (error.message?.includes('network')) {
+        throw new Error('ネットワークエラーが発生しました。接続を確認してください。');
+      }
+      
+      // デフォルトのエラーメッセージ
+      throw new Error(error.message || 'ミントに失敗しました。');
     }
   }
 
