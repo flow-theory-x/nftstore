@@ -184,14 +184,6 @@ export const OwnedTokensPage: React.FC = () => {
   }, [contractAddress, effectiveAddress, memberInfoFetched]);
 
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      // TODO: Add toast notification for copy success
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
-  };
 
   if (loading && tokens.length === 0) {
     return (

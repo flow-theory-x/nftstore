@@ -12,6 +12,7 @@ import { useWallet } from "../hooks/useWallet";
 import { useOwnerAndCreatorInfo } from "../hooks/useAddressInfo";
 import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
 import { AddressTypeIcon } from "./AddressTypeIcon";
+import { copyToClipboard } from "../utils/clipboardUtils";
 import styles from "./NFTCard.module.css";
 
 import yachtIcon from "../assets/icons/yacht.svg";

@@ -6,6 +6,7 @@ import { NftContractService } from "../utils/nftContract";
 import { useCreatorPageWalletChange } from "../hooks/useWalletAddressChange";
 import { useAddressInfo } from "../hooks/useAddressInfo";
 import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
+import { copyToClipboard } from "../utils/clipboardUtils";
 import { CONTRACT_ADDRESS } from "../constants";
 import type { NFTToken } from "../types";
 import styles from "./TokensPage.module.css";
@@ -44,14 +45,6 @@ export const CreatorPage: React.FC = () => {
     setForceRefresh(prev => prev + 1);
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      alert("Copied!");
-    } catch (err) {
-      console.error("Failed to copy text: ", err);
-    }
-  };
 
   const fetchCreatorTokensBatch = useCallback(async (startIndex: number) => {
     try {

@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { NFTCard } from "../components/NFTCard";
 import { Spinner } from "../components/Spinner";
 import { NftContractService } from "../utils/nftContract";
+import { copyToClipboard } from "../utils/clipboardUtils";
 import { CONTRACT_ADDRESS } from "../constants";
 import type { NFTToken } from "../types";
 import styles from "./TokensPage.module.css";
@@ -44,14 +45,6 @@ export const TokensPage: React.FC = () => {
     setForceRefresh(prev => prev + 1);
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      alert("Copied!");
-    } catch (err) {
-      console.error("Failed to copy text: ", err);
-    }
-  };
 
   const fetchTokensBatch = useCallback(async (startIndex: number) => {
     console.log(`📦 fetchTokensBatch called with startIndex: ${startIndex}, allTokenIds.length: ${allTokenIds.length}`);

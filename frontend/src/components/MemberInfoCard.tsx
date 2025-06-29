@@ -4,6 +4,7 @@ import { Spinner } from "./Spinner";
 import { NFTCard } from "./NFTCard";
 import { NftContractService } from "../utils/nftContract";
 import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
+import { copyToClipboard } from "../utils/clipboardUtils";
 import discordIcon from "../assets/icons/discord.png";
 import creatorIcon from "../assets/icons/creator.svg";
 import styles from "./MemberInfoCard.module.css";
@@ -37,14 +38,6 @@ export const MemberInfoCard: React.FC<MemberInfoCardProps> = ({
   };
 
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      console.log('📋 Copied to clipboard:', text);
-    } catch (err) {
-      console.error('❌ Failed to copy to clipboard:', err);
-    }
-  };
 
   // NFT metadata state for TBA avatar
   const [tbaMetadata, setTbaMetadata] = useState<any>(null);
