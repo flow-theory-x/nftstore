@@ -13,66 +13,8 @@ export class MemberService {
         console.log(`🔍 Lowercase address: ${address.toLowerCase()}`);
         console.log(`🔍 Checksum address: ${this.toChecksumAddress(address)}`);
         
-        // 新旧APIの判定
-        const isNewAPI = MEMBER_API_BASE_URL.includes('web3.bon-soleil.com');
-        
-        if (isNewAPI) {
-          // 新API用の処理
-          return await this.getMemberInfoFromNewAPI(address);
-        }
-        
-        // 旧API用の処理（既存のコード）
-        const addressesToTry = [
-          address,
-          address.toLowerCase(),
-          this.toChecksumAddress(address),
-        ];
-        
-        // 重複を除去
-        const uniqueAddresses = [...new Set(addressesToTry)];
-        
-        for (const addr of uniqueAddresses) {
-          console.log(`🔍 Trying address: ${addr}`);
-          const response = await fetch(`${MEMBER_API_BASE_URL}/${addr}`);
-          
-          console.log(`📡 API Response status: ${response.status} for ${addr}`);
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log(`📋 Raw API response for ${addr}:`, data);
-            
-            // APIからのレスポンスが "member not found" の場合は次のアドレスを試す
-            if (typeof data === 'object' && data?.message === 'member not found') {
-              console.log(`📋 Member not found in response for ${addr}, trying next address...`);
-              continue;
-            }
-
-            console.log(`✅ Member info retrieved for ${addr}:`, data);
-            console.log(`📋 Data keys:`, Object.keys(data));
-            console.log(`📋 Icon/avatar:`, data.Icon || data.avatar_url);
-            console.log(`📋 Name fields:`, {
-              Nick: data.Nick,
-              Name: data.Name,
-              Username: data.Username,
-              nickname: data.nickname,
-              username: data.username
-            });
-            
-            return {
-              address: address, // 元のアドレスを保持
-              ...data
-            } as MemberInfo;
-          } else if (response.status === 404) {
-            console.info(`ℹ️ Member not found (404) for ${addr} - trying next address format...`);
-            continue;
-          } else {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-        }
-        
-        // すべてのアドレス形式で見つからなかった場合
-        console.info(`ℹ️ Member not found in any address format for: ${address} - this is normal for unregistered addresses`);
-        return null;
+        // 環境変数で指定されたAPIを使用
+        return await this.getMemberInfoFromAPI(address);
     } catch (error) {
       console.error(`❌ Failed to fetch member info for ${address}:`, error);
       return null;
@@ -80,9 +22,9 @@ export class MemberService {
   }
   
   /**
-   * 新API用のメンバー情報取得
+   * APIからメンバー情報を取得
    */
-  private async getMemberInfoFromNewAPI(address: string): Promise<MemberInfo | null> {
+  private async getMemberInfoFromAPI(address: string): Promise<MemberInfo | null> {
     try {
       const addressesToTry = [
         address,
@@ -93,7 +35,7 @@ export class MemberService {
       const uniqueAddresses = [...new Set(addressesToTry)];
       
       for (const addr of uniqueAddresses) {
-        console.log(`🔍 Trying address with new API: ${addr}`);
+        console.log(`🔍 Trying address: ${addr}`);
         
         try {
           const response = await fetch(`${MEMBER_API_BASE_URL}/discord/eoa/${addr}`, {
@@ -101,17 +43,17 @@ export class MemberService {
             cache: 'no-cache'
           });
           
-          console.log(`📡 New API Response status: ${response.status} for ${addr}`);
+          console.log(`📡 API Response status: ${response.status} for ${addr}`);
           
           if (response.ok) {
             const data = await response.json();
-            console.log(`📋 Raw new API response for ${addr}:`, data);
+            console.log(`📋 Raw API response for ${addr}:`, data);
             
             // レスポンス内容で判定
             if (data.success === true && data.discord_member) {
               // 正常なメンバー情報
-              const mapped = this.mapNewAPIResponse(address, data);
-              console.log(`✅ Member info mapped from new API:`, mapped);
+              const mapped = this.mapAPIResponse(address, data);
+              console.log(`✅ Member info mapped from API:`, mapped);
               return mapped;
             } else if (data.success === false) {
               // エラーレスポンスの処理
@@ -175,40 +117,40 @@ export class MemberService {
         }
       }
       
-      console.info(`ℹ️ Member not found in new API for: ${address} - this is normal for unregistered addresses`);
+      console.info(`ℹ️ Member not found in API for: ${address} - this is normal for unregistered addresses`);
       return null;
     } catch (error) {
-      console.error(`❌ Failed to fetch from new API for ${address}:`, error);
+      console.error(`❌ Failed to fetch from API for ${address}:`, error);
       return null;
     }
   }
   
   /**
-   * 新APIレスポンスを既存のMemberInfo形式にマッピング
+   * APIレスポンスをMemberInfo形式にマッピング
    */
-  private mapNewAPIResponse(address: string, data: any): MemberInfo {
+  private mapAPIResponse(address: string, data: any): MemberInfo {
     const discordMember = data.discord_member || {};
     const registrationInfo = data.registration_info || {};
     
     return {
       address: address,
       
-      // 新API形式のフィールド（大文字）
-      DeleteFlag: false, // 新APIには削除フラグなし -> デフォルトfalse
+      // API形式のフィールド（大文字）
+      DeleteFlag: false, // APIには削除フラグなし -> デフォルトfalse
       DiscordId: discordMember.user_id || '',
       Icon: discordMember.avatar_url || '',
       Roles: discordMember.roles || [], // オブジェクト全体を保持
-      Expired: 'EMPTY', // 新APIには有効期限なし
+      Expired: 'EMPTY', // APIには有効期限なし
       Eoa: data.eoa_address || address,
       Nick: discordMember.display_name || discordMember.username || '',
-      PartitionName: 'EMPTY', // 新APIにはパーティション名なし
-      Updated: 'EMPTY', // 新APIには更新日時なし
+      PartitionName: 'EMPTY', // APIにはパーティション名なし
+      Updated: 'EMPTY', // APIには更新日時なし
       Name: discordMember.display_name || discordMember.username || '',
       Username: discordMember.username || '',
       
       // レガシーフィールド（小文字）
       name: discordMember.display_name || discordMember.username || '',
-      email: 'EMPTY', // 新APIにはメールなし
+      email: 'EMPTY', // APIにはメールなし
       role: discordMember.roles?.[0]?.name || '',
       joinedAt: discordMember.joined_at || '',
       joined_at: discordMember.joined_at || '',

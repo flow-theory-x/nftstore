@@ -92,9 +92,10 @@ export class NftContractService {
 
   async getTokenInfo(tokenId: string): Promise<NFTToken> {
     try {
-      const [tokenURI, owner] = await Promise.all([
+      const [tokenURI, owner, isSbt] = await Promise.all([
         (this.contract as any).tokenURI(tokenId),
-        this.getTokenOwner(tokenId)
+        this.getTokenOwner(tokenId),
+        this.getSbtFlag(tokenId)
       ]);
       
       if (!tokenURI) {
@@ -109,6 +110,7 @@ export class NftContractService {
         owner,
         contractAddress: this.contractAddress,
         tokenURI,
+        isSbt,
         ...metadata
       };
     } catch (error) {

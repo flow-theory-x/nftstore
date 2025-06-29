@@ -8,6 +8,7 @@ import { useWallet } from "../hooks/useWallet";
 import { useOwnPageWalletChange } from "../hooks/useWalletAddressChange";
 import { useAddressInfo } from "../hooks/useAddressInfo";
 import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
+import { copyToClipboard } from "../utils/clipboardUtils";
 import { CONTRACT_ADDRESS, isTBAEnabled } from "../constants";
 import { MemberInfoCard } from "../components/MemberInfoCard";
 import { TbaService } from "../utils/tbaService";
