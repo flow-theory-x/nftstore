@@ -249,10 +249,9 @@ export const TokenDetailPage: React.FC = () => {
               // コントラクトサービスを使用してトークン検索
               const contractService = new NftContractService(contractAddress);
               
-              // TBA所有のトークンを検索（簡易版）
-              // 注意: この機能はパフォーマンス上の理由で制限されています
-              console.log(`⚠️ TBA token search temporarily disabled for performance reasons`);
-              const ownedTokens: string[] = [];
+              // TBA所有のトークンを検索
+              console.log(`🔍 Searching for tokens owned by TBA: ${tbaInfo.accountAddress}`);
+              const ownedTokens = await contractService.getTokensByOwner(tbaInfo.accountAddress);
 
               console.log(
                 `🎯 TBA owns ${ownedTokens.length} tokens from ${contractAddress}`
