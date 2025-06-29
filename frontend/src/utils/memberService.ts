@@ -107,59 +107,66 @@ export class MemberService {
             const data = await response.json();
             console.log(`📋 Raw new API response for ${addr}:`, data);
             
-            // 新APIからのレスポンスをマッピング
-            if (data.discord_member) {
+            // レスポンス内容で判定
+            if (data.success === true && data.discord_member) {
+              // 正常なメンバー情報
               const mapped = this.mapNewAPIResponse(address, data);
               console.log(`✅ Member info mapped from new API:`, mapped);
               return mapped;
-            }
-          } else if (response.status === 404) {
-            console.info(`ℹ️ Member not found in new API (404) for ${addr} - this is normal for unregistered addresses`);
-            continue;
-          } else if (response.status === 503) {
-            // 503エラーの場合、レスポンスボディを確認して部分的な情報があれば利用
-            console.warn(`⚠️ Discord service temporarily unavailable (503) for ${addr}`);
-            
-            try {
-              const errorData = await response.json();
-              console.warn(`📋 503 Response body:`, errorData);
-              
-              // Discord IDやEOAアドレスが含まれている場合は部分的なMemberInfoを作成
-              if (errorData.discord_id || errorData.eoa_address) {
-                console.info(`ℹ️ Creating partial member info from 503 response for ${addr}`);
-                const partialMemberInfo: MemberInfo = {
-                  address: address,
-                  DeleteFlag: false,
-                  DiscordId: errorData.discord_id || '',
-                  Icon: '',
-                  Roles: [],
-                  Expired: 'EMPTY',
-                  Eoa: errorData.eoa_address || address,
-                  Nick: `User (Discord unavailable)`,
-                  PartitionName: 'EMPTY',
-                  Updated: 'EMPTY',
-                  Name: `User (Discord unavailable)`,
-                  Username: '',
-                  name: `User (Discord unavailable)`,
-                  email: 'EMPTY',
-                  role: '',
-                  joinedAt: '',
-                  joined_at: '',
-                  status: 'discord_unavailable',
-                  deleted: false,
-                  discord_id: errorData.discord_id || '',
-                  avatar_url: '',
-                  nickname: '',
-                  username: '',
-                  roles: [],
-                  expires_at: 'EMPTY',
-                  updated_at: 'EMPTY',
-                };
-                return partialMemberInfo;
+            } else if (data.success === false) {
+              // エラーレスポンスの処理
+              if (data.error === "Member not found" || data.error === "member not found") {
+                console.info(`ℹ️ Member not found for ${addr} - this is normal for unregistered addresses`);
+                continue;
+              } else if (data.error === "Discord service unavailable" || data.error === "Discord user not found") {
+                // Discord退会済みユーザー
+                console.info(`ℹ️ Discord user left server for ${addr} - ${data.error}`);
+                
+                if (data.discord_id || data.eoa_address) {
+                  console.info(`ℹ️ Creating member info for Discord left user: ${addr}`);
+                  const partialMemberInfo: MemberInfo = {
+                    address: address,
+                    DeleteFlag: false,
+                    DiscordId: data.discord_id || '',
+                    Icon: '',
+                    Roles: [],
+                    Expired: 'EMPTY',
+                    Eoa: data.eoa_address || address,
+                    Nick: `退会済みユーザー`,
+                    PartitionName: 'EMPTY',
+                    Updated: 'EMPTY',
+                    Name: `退会済みユーザー`,
+                    Username: '',
+                    name: `退会済みユーザー`,
+                    email: 'EMPTY',
+                    role: '',
+                    joinedAt: '',
+                    joined_at: '',
+                    status: 'left_discord',
+                    deleted: false,
+                    discord_id: data.discord_id || '',
+                    avatar_url: '',
+                    nickname: '',
+                    username: '',
+                    roles: [],
+                    expires_at: 'EMPTY',
+                    updated_at: 'EMPTY',
+                  };
+                  return partialMemberInfo;
+                }
+                continue;
+              } else {
+                console.warn(`⚠️ Unknown error from API for ${addr}:`, data);
+                continue;
               }
-            } catch (jsonError) {
-              console.warn(`📋 Could not parse 503 response as JSON:`, jsonError);
+            } else {
+              // 予期しないレスポンス形式
+              console.warn(`⚠️ Unexpected response format for ${addr}:`, data);
+              continue;
             }
+          } else {
+            // 200以外のHTTPステータス（API側修正後は基本的に発生しないはず）
+            console.warn(`⚠️ Non-200 status ${response.status} for ${addr}`);
             continue;
           }
         } catch (fetchError) {
