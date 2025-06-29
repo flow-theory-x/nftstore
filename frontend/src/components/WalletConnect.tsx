@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useWallet } from "../hooks/useWallet";
-import { CHAIN_ID } from "../constants";
+import { CHAIN_ID, CHAIN_NAME } from "../constants";
 import { WalletIcon, DisconnectWalletIcon } from "../assets/icons";
 import styles from "./WalletConnect.module.css";
 
@@ -17,6 +17,14 @@ export const WalletConnect: React.FC = () => {
 
   const isWrongNetwork =
     walletState.chainId && walletState.chainId !== CHAIN_ID;
+  
+  // Debug log
+  console.log('🔍 Network check:', {
+    walletChainId: walletState.chainId,
+    expectedChainId: CHAIN_ID,
+    chainName: CHAIN_NAME,
+    isWrongNetwork
+  });
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -74,7 +82,7 @@ export const WalletConnect: React.FC = () => {
           </div>
           {isWrongNetwork && (
             <div className={styles.wrongNetwork}>
-              Wrong Network (Please switch to Polygon)
+              Wrong Network (Please switch to {CHAIN_NAME})
             </div>
           )}
           <button

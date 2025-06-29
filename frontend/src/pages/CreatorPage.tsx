@@ -2,11 +2,14 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { NFTCard } from "../components/NFTCard";
 import { Spinner } from "../components/Spinner";
+import { ErrorDisplay } from "../components/ErrorDisplay";
 import { NftContractService } from "../utils/nftContract";
 import { useCreatorPageWalletChange } from "../hooks/useWalletAddressChange";
 import { useAddressInfo } from "../hooks/useAddressInfo";
 import { AddressDisplayUtils } from "../utils/addressDisplayUtils";
+import { copyToClipboard } from "../utils/clipboardUtils";
 import { CONTRACT_ADDRESS } from "../constants";
+import { LOADING_MESSAGES } from "../constants/messages";
 import type { NFTToken } from "../types";
 import styles from "./TokensPage.module.css";
 
@@ -44,14 +47,6 @@ export const CreatorPage: React.FC = () => {
     setForceRefresh(prev => prev + 1);
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      alert("Copied!");
-    } catch (err) {
-      console.error("Failed to copy text: ", err);
-    }
-  };
 
   const fetchCreatorTokensBatch = useCallback(async (startIndex: number) => {
     try {
@@ -185,7 +180,7 @@ export const CreatorPage: React.FC = () => {
         <h1 className={styles.title}>
           {creatorAddress ? getPageTitle() : "Creator"}
         </h1>
-        <Spinner size="large" text="Loading creator information..." />
+        <Spinner size="large" text={LOADING_MESSAGES.CREATOR_INFO} />
       </div>
     );
   }
@@ -196,24 +191,11 @@ export const CreatorPage: React.FC = () => {
         <h1 className={styles.title}>
           {creatorAddress ? getPageTitle() : "Creator"}
         </h1>
-        <div className={styles.error}>
-          <p>{error}</p>
-          <div className={styles.errorActions}>
-            <button
-              onClick={() => copyToClipboard(error)}
-              className={styles.copyErrorButton}
-              title="Copy error message"
-            >
-              Copy
-            </button>
-            <button
-              onClick={() => window.location.reload()}
-              className={styles.retryButton}
-            >
-              Retry
-            </button>
-          </div>
-        </div>
+        <ErrorDisplay 
+          error={error}
+          title="Failed to Load Creator"
+          onRetry={() => window.location.reload()}
+        />
       </div>
     );
   }
@@ -234,24 +216,11 @@ export const CreatorPage: React.FC = () => {
       <h1 className={styles.title}>{getPageTitle()}</h1>
 
       {error && (nftTokens.length > 0 || sbtTokens.length > 0) && (
-        <div className={styles.error}>
-          <p>{error}</p>
-          <div className={styles.errorActions}>
-            <button
-              onClick={() => copyToClipboard(error)}
-              className={styles.copyErrorButton}
-              title="Copy error message"
-            >
-              Copy
-            </button>
-            <button
-              onClick={() => window.location.reload()}
-              className={styles.retryButton}
-            >
-              Retry
-            </button>
-          </div>
-        </div>
+        <ErrorDisplay 
+          error={error}
+          title="Failed to Load Creator"
+          onRetry={() => window.location.reload()}
+        />
       )}
 
       {nftTokens.length === 0 && sbtTokens.length === 0 && !isLoadingMore && !hasMore ? (

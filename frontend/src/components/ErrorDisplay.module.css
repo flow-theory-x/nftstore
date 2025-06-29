@@ -1,0 +1,216 @@
+/* ErrorDisplay Component Styles */
+
+.errorContainer {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid;
+  background-color: #fff;
+  margin: 16px 0;
+}
+
+.errorContainer--default {
+  border-color: #dc3545;
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.errorContainer--warning {
+  border-color: #ffc107;
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.errorContainer--critical {
+  border-color: #dc3545;
+  background-color: #f5c6cb;
+  color: #721c24;
+}
+
+.errorContainer--info {
+  border-color: #17a2b8;
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+
+.errorContainer--small {
+  padding: 8px 12px;
+  font-size: 0.9em;
+}
+
+.errorContainer--medium {
+  padding: 16px;
+  font-size: 1em;
+}
+
+.errorContainer--large {
+  padding: 24px;
+  font-size: 1.1em;
+}
+
+.errorIcon {
+  font-size: 1.5em;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.errorContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.errorTitle {
+  margin: 0 0 8px 0;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: inherit;
+}
+
+.errorMessage {
+  margin: 0 0 12px 0;
+  line-height: 1.4;
+  word-wrap: break-word;
+  color: inherit;
+}
+
+.errorActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.errorButton {
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 0.9em;
+  color: inherit;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.errorButton:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.errorButton:active {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.copyButton {
+  opacity: 0.8;
+}
+
+.copyButton:hover {
+  opacity: 1;
+}
+
+.retryButton {
+  font-weight: 500;
+}
+
+/* Variant-specific button styles */
+.errorContainer--default .retryButton {
+  background-color: #dc3545;
+  color: white;
+  border-color: #dc3545;
+}
+
+.errorContainer--default .retryButton:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+}
+
+.errorContainer--warning .retryButton {
+  background-color: #ffc107;
+  color: #212529;
+  border-color: #ffc107;
+}
+
+.errorContainer--warning .retryButton:hover {
+  background-color: #e0a800;
+  border-color: #d39e00;
+}
+
+.errorContainer--critical .retryButton {
+  background-color: #dc3545;
+  color: white;
+  border-color: #dc3545;
+}
+
+.errorContainer--critical .retryButton:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+}
+
+.errorContainer--info .retryButton {
+  background-color: #17a2b8;
+  color: white;
+  border-color: #17a2b8;
+}
+
+.errorContainer--info .retryButton:hover {
+  background-color: #138496;
+  border-color: #117a8b;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .errorContainer {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+  }
+  
+  .errorIcon {
+    align-self: flex-start;
+  }
+  
+  .errorActions {
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .errorButton {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Compact mode for inline errors */
+.errorContainer--small {
+  flex-direction: row;
+  align-items: center;
+  padding: 8px 12px;
+  margin: 8px 0;
+}
+
+.errorContainer--small .errorIcon {
+  font-size: 1.2em;
+  margin-top: 0;
+}
+
+.errorContainer--small .errorTitle {
+  font-size: 1em;
+  margin-bottom: 4px;
+}
+
+.errorContainer--small .errorMessage {
+  margin-bottom: 8px;
+  font-size: 0.9em;
+}
+
+.errorContainer--small .errorActions {
+  gap: 6px;
+}
+
+.errorContainer--small .errorButton {
+  padding: 4px 8px;
+  font-size: 0.8em;
+}
